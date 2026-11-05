@@ -1,4 +1,4 @@
-# Caddis — Plan
+# Clay — Plan
 
 _v2 · 2026-10-13. Supersedes the research draft. The prototype in this repo implements most of §1–§6. §8 lists what is still open._
 
@@ -21,7 +21,7 @@ The canvas is a **by-product of the session**. It is persisted with the session 
 
 ## 1. Claude integration (the bb approach)
 
-- Use `query()` from `@anthropic-ai/claude-agent-sdk` with `pathToClaudeCodeExecutable` set to the `claude` binary on `PATH`. `CADDIS_CLAUDE_EXECUTABLE` overrides it, and the SDK's bundled binary is the fallback.
+- Use `query()` from `@anthropic-ai/claude-agent-sdk` with `pathToClaudeCodeExecutable` set to the `claude` binary on `PATH`. `CLAY_CLAUDE_EXECUTABLE` overrides it, and the SDK's bundled binary is the fallback.
 - **Auth comes from the CLI's own login**: a Pro/Max subscription via `claude login`, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`, which is passed through the environment. **We never set `ANTHROPIC_API_KEY`.** The start card shows the account the host reports (for example "Claude Max subscription (you@…)").
 - `settingSources: ["user","project","local"]`, so the user's CLAUDE.md, permissions and MCP servers apply.
 - `persistSession: true`, and a later turn resumes with `resume: <providerSessionId>`. Sessions therefore survive app restarts.
@@ -29,7 +29,7 @@ The canvas is a **by-product of the session**. It is persisted with the session 
 - **Models and efforts come from the host**: `supportedModels()` and `accountInfo()` at discovery. Nothing is hard-coded. Discovery is retried after 30 s if it fails.
 - Canvas tools come from `createSdkMcpServer` (in-process, `alwaysLoad`). `Read/Glob/Grep/WebFetch/WebSearch/TodoWrite` and the canvas tools are pre-approved.
   - **Edits and commands in the working directory are allowed by default:** `permissionMode: "acceptEdits"` auto-accepts file edits in the cwd, and Bash runs in Claude Code's sandbox (`autoAllowBashIfSandboxed`, `allowUnsandboxedCommands: false`), so commands are auto-approved but can only write inside the cwd. Network is allowed.
-  - Anything outside that is denied (there is no approvals UI yet). `CADDIS_PERMISSION_MODE` and `CADDIS_SANDBOX=0` override it.
+  - Anything outside that is denied (there is no approvals UI yet). `CLAY_PERMISSION_MODE` and `CLAY_SANDBOX=0` override it.
 
 ## 2. Tools: primitives that update in place
 
@@ -126,7 +126,7 @@ BrowserWindow (one per session; host renderer: React titlebar + chrome)
   - Navigation away from the host URL is blocked.
   - The permission handler allows only clipboard-write and fullscreen.
   - The frame shell is served from `protocol.handle("canvas")`, and in the web build from `/frame/`.
-- **Native features**: a directory picker for the cwd, `capturePage()` screenshots for `canvas_view`, Ctrl/Cmd+N or File → New Window for a new session window, File → Open/Save for `.caddis` artifacts (§7), and `--session=<id>` or `CADDIS_SESSION` to reopen a session.
+- **Native features**: a directory picker for the cwd, `capturePage()` screenshots for `canvas_view`, Ctrl/Cmd+N or File → New Window for a new session window, File → Open/Save for `.clay` artifacts (§7), and `--session=<id>` or `CLAY_SESSION` to reopen a session.
 - **Linux/Wayland**:
   - Electron's `auto` ozone hint keys off `XDG_SESSION_TYPE`, which shells outside the login session often lack.
   - `scripts/electron.mjs` (and `vp dev`) set it when `WAYLAND_DISPLAY` is present. Verified on Hyprland: a native Wayland window, with WebGL working.
@@ -145,9 +145,9 @@ BrowserWindow (one per session; host renderer: React titlebar + chrome)
 - the undo/redo stacks;
 - the activity log and the agent's read cursor.
 
-Saves are debounced and atomic (write then rename) and flushed on quit. Electron's `dataDir` is `userData/data`; the web server uses `./data`. `CADDIS_DATA_DIR` overrides both.
+Saves are debounced and atomic (write then rename) and flushed on quit. Electron's `dataDir` is `userData/data`; the web server uses `./data`. `CLAY_DATA_DIR` overrides both.
 
-**Artifacts (`.caddis`)** are the portable form of a session: a zip with a checksummed `manifest.json`, `data.json`, `history.json`, `canvas/*`, Claude Code's transcript (`claude/transcript.jsonl`), files the agent wrote with Write/Edit (`workspace/*`), chrome, activity, undo and a `preview.png`. Built and parsed in `src/core/artifact.ts`.
+**Artifacts (`.clay`)** are the portable form of a session: a zip with a checksummed `manifest.json`, `data.json`, `history.json`, `canvas/*`, Claude Code's transcript (`claude/transcript.jsonl`), files the agent wrote with Write/Edit (`workspace/*`), chrome, activity, undo and a `preview.png`. Built and parsed in `src/core/artifact.ts`.
 
 - **Open** creates a new session. The transcript is installed into the CLI's project directory for the session's cwd (never overwriting), and the first run resumes it with `forkSession`, so the original conversation stays untouched.
 - Workspace files are restored only into the original cwd and only where missing.
@@ -159,18 +159,18 @@ Saves are debounced and atomic (write then rename) and flushed on quit. Electron
 
 **Open questions**
 
-1. **Standalone export for sharing.** `.caddis` artifacts (§7) need Caddis to open. A viewer-only export is still open: the likely shape is a single HTML file with inlined resources, vendored libs, a data snapshot and a stub `canvas` API (data persisted to `localStorage`, `emit` a no-op). An MCP App (`text/html;profile=mcp-app`) is another candidate.
+1. **Standalone export for sharing.** `.clay` artifacts (§7) need Clay to open. A viewer-only export is still open: the likely shape is a single HTML file with inlined resources, vendored libs, a data snapshot and a stub `canvas` API (data persisted to `localStorage`, `emit` a no-op). An MCP App (`text/html;profile=mcp-app`) is another candidate.
 2. **Canvas-initiated turns.** Should `canvas.emit(…, {wake: true})` start a turn, rate-limited?
 
 **Next steps**, roughly in order:
 
 1. An approvals UI for non-preapproved tools.
 2. A session list and switcher.
-3. Self-contained HTML export (`.caddis` save/open is done).
+3. Self-contained HTML export (`.clay` save/open is done).
 4. "Point at element" context.
 5. Packaging (electron-builder, fuses, asar).
 6. Pairing or auth before the web target leaves trusted networks.
-7. Carry Codex and ACP conversations inside `.caddis` files (only Claude's transcript travels today).
+7. Carry Codex and ACP conversations inside `.clay` files (only Claude's transcript travels today).
 
 **Risks**
 

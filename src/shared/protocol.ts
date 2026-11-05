@@ -1,5 +1,5 @@
 /**
- * Caddis protocol, version 2.
+ * Clay protocol, version 2.
  *
  * Three hops:
  *   1. host transport  UI <-> session core  (ClientMsg / ServerMsg)
@@ -12,7 +12,7 @@
  */
 
 export const PROTOCOL_VERSION = 2;
-export const FRAME_CHANNEL = "caddis";
+export const FRAME_CHANNEL = "clay";
 
 // ---------------------------------------------------------------------------
 // Canvas: a mode plus a set of named resources, all applied live
@@ -280,7 +280,7 @@ export interface SessionSnapshot {
   chrome: ChromeState;
   undo: UndoInfo;
   stats?: CanvasStats;
-  /** File name of the `.caddis` artifact this session was last saved to or opened from. */
+  /** File name of the `.clay` artifact this session was last saved to or opened from. */
   file?: string;
   title?: SessionTitle;
 }
@@ -391,7 +391,7 @@ export type ClientMsg =
   | { t: "title.set"; title: string }
   // artifacts (web; Electron main reads and writes files itself)
   | { t: "artifact.export" }
-  /** A `.caddis` file as base64. Opens as a new session; the reply is `artifact.opened`. */
+  /** A `.clay` file as base64. Opens as a new session; the reply is `artifact.opened`. */
   | { t: "artifact.import"; data: string; name?: string }
   // hub only (see src/shared/hub.ts and docs/HUB.md)
   | { t: "hub.join"; token: string; name: string }
@@ -407,7 +407,7 @@ export type ClientMsg =
 export type ServerMsg =
   /**
    * `defaultCwd` is empty when each new session gets its own temporary directory.
-   * `hub` is set when the other end is a Caddis hub: the client must `hub.join` before anything else.
+   * `hub` is set when the other end is a Clay hub: the client must `hub.join` before anything else.
    */
   | {
       t: "welcome";
@@ -437,7 +437,7 @@ export type ServerMsg =
   | { t: "undo.state"; undo: UndoInfo }
   | { t: "title"; title?: SessionTitle }
   | { t: "stats"; stats: CanvasStats }
-  /** Reply to `artifact.export`: a `.caddis` file (base64) to download. */
+  /** Reply to `artifact.export`: a `.clay` file (base64) to download. */
   | { t: "artifact.file"; name: string; data: string }
   | { t: "artifact.opened"; sessionId: string }
   /** Electron: the session was saved to `name`. */

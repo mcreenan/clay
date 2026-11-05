@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import electron from "vite-plugin-electron/simple";
+import type { ElectronOptions } from "vite-plugin-electron";
 import { defineConfig } from "vite-plus";
 import pkg from "./package.json" with { type: "json" };
 
@@ -24,6 +25,10 @@ function electronEnv() {
   return env;
 }
 
+// Either build can finish last on a cold start. Both must use the branded bundle.
+const startElectron: NonNullable<ElectronOptions["onstart"]> = ({ startup }) =>
+  void startup(["."], { cwd: r("."), env: electronEnv() }, r("scripts/electron-path.cjs"));
+
 /**
  * vp also loads this file for `vp test`/`vp pack`/`vp lint`; the Electron plugin only belongs to `vp dev`/`vp build`
  * (otherwise it writes a placeholder index.html at the root or tries to start Electron).
@@ -43,13 +48,14 @@ export default defineConfig({
         main: {
           entry: r("src/main/index.ts"),
           // Keep the OS sandbox on (the plugin's default argv adds --no-sandbox).
-          onstart: ({ startup }) => void startup(["."], { cwd: r("."), env: electronEnv() }),
+          onstart: startElectron,
           vite: {
             build: { outDir: r("out/main"), emptyOutDir: true, minify: false, rolldownOptions: { external } },
           },
         },
         preload: {
           input: r("src/preload/index.ts"),
+          onstart: startElectron,
           vite: {
             // Sandboxed renderers can only load CommonJS preloads.
             build: {
@@ -76,7 +82,7 @@ export default defineConfig({
     projects: [
       { extends: true, test: { name: "unit", include: ["src/**/*.test.{ts,tsx}"], environment: "node" } },
       // Drives the real app against a real Claude turn; opt in with `vp run e2e`.
-      ...(process.env.CADDIS_E2E
+      ...(process.env.CLAY_E2E
         ? [{ extends: true, test: { name: "e2e", include: ["e2e/**/*.e2e.ts"], testTimeout: 30 * 60_000 } }]
         : []),
     ],

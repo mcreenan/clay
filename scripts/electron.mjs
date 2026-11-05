@@ -5,7 +5,7 @@
 // Wayland-only compositor Electron then looks for X. `vp dev` applies the same env
 // fixes in vite.config.ts.
 import { spawn } from "node:child_process";
-import electron from "electron";
+import electron from "./electron-path.cjs";
 
 const env = { ...process.env };
 // Terminals spawned by Electron apps (bb, VS Code, ...) often export this, which

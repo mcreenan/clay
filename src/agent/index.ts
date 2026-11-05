@@ -7,7 +7,7 @@ import { SessionManager } from "../core/manager";
 /**
  * `npm run agent -- --hub http://host:5318 --name Matt --token …`
  *
- * Lends the coding agents installed on this machine to a Caddis hub. Turns
+ * Lends the coding agents installed on this machine to a Clay hub. Turns
  * run here, with your own logins and in a working directory here; the hub
  * only sees the canvas tool calls and the agent's replies. The desktop app
  * does this by itself when it connects to a hub.
@@ -16,10 +16,10 @@ import { SessionManager } from "../core/manager";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const { values } = parseArgs({
   options: {
-    hub: { type: "string", default: process.env.CADDIS_HUB_URL },
-    name: { type: "string", default: process.env.CADDIS_HUB_NAME },
-    token: { type: "string", default: process.env.CADDIS_HUB_TOKEN },
-    cwd: { type: "string", default: process.env.CADDIS_DEFAULT_CWD },
+    hub: { type: "string", default: process.env.CLAY_HUB_URL },
+    name: { type: "string", default: process.env.CLAY_HUB_NAME },
+    token: { type: "string", default: process.env.CLAY_HUB_TOKEN },
+    cwd: { type: "string", default: process.env.CLAY_DEFAULT_CWD },
     "no-handoffs": { type: "boolean", default: false },
   },
 });
@@ -30,11 +30,11 @@ if (!values.hub || !values.name || !values.token) {
   process.exit(2);
 }
 
-const DATA = path.resolve(process.env.CADDIS_DATA_DIR ?? path.join(ROOT, "data"));
+const DATA = path.resolve(process.env.CLAY_DATA_DIR ?? path.join(ROOT, "data"));
 const manager = new SessionManager(DATA);
 await manager.discover();
 const ready = manager.providerInfos().filter((p) => p.enabled);
-console.log(`[caddis agent] agents here: ${ready.map((p) => p.label).join(", ") || "none signed in"}`);
+console.log(`[clay agent] agents here: ${ready.map((p) => p.label).join(", ") || "none signed in"}`);
 
 const link = new AgentLink({
   url: values.hub,

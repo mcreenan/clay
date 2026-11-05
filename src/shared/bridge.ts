@@ -2,8 +2,8 @@ import type { CanvasStats, ClientMsg, ServerMsg, UiCommand } from "./protocol";
 
 export type FileCommand = "new" | "open" | "save" | "saveAs";
 
-/** The only surface the host renderer gets (`window.caddis`, exposed by the preload): a message pipe to the core plus a few native helpers. */
-export interface CaddisBridge {
+/** The only surface the host renderer gets (`window.clay`, exposed by the preload): a message pipe to the core plus a few native helpers. */
+export interface ClayBridge {
   platform: "electron";
   /** The OS: macOS gets the native menu bar and traffic lights; elsewhere the titlebar has a menu button. */
   os: string;
@@ -18,6 +18,6 @@ export interface CaddisBridge {
   newWindow(): void;
   /** Memory/CPU of the canvas frame's process. */
   processStats(): Promise<CanvasStats["process"]>;
-  /** File menu actions; main shows the native dialogs and reads/writes `.caddis` files. */
+  /** File menu actions; main shows the native dialogs and reads/writes `.clay` files. */
   file(cmd: FileCommand): void;
 }

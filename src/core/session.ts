@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { clayArtifactPath } from "../shared/artifact";
 import { CHROME_BASE, CHROME_LIMITS, effectiveProps, layoutChrome, normaliseChromeProps } from "../shared/chrome";
 import {
   CANVAS_MODES,
@@ -309,10 +310,10 @@ export class Session {
 
   /** Default file name for Save As. */
   get artifactName() {
-    return this.d.artifactPath ? path.basename(this.d.artifactPath) : artifactFilename(this.title);
+    return this.d.artifactPath ? clayArtifactPath(path.basename(this.d.artifactPath)) : artifactFilename(this.title);
   }
 
-  /** Package the session as a `.caddis` artifact, with a screenshot of the window when a viewer is open. */
+  /** Package the session as a `.clay` artifact, with a screenshot of the window when a viewer is open. */
   async exportArtifact() {
     this.flush();
     const preview = await this.previewImage();

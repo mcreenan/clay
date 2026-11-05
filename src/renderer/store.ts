@@ -46,7 +46,7 @@ export interface UiState {
   title?: SessionTitle;
   /** The titlebar's title is being edited. */
   renaming: boolean;
-  /** Short-lived notice ("Saved x.caddis"). */
+  /** Short-lived notice ("Saved x.clay"). */
   toast?: string;
 
   // hub (docs/HUB.md)

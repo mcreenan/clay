@@ -1,12 +1,14 @@
-# Caddis
+<img src="build/icon.svg" alt="Clay Pebble icon" width="96" height="96" />
 
-In Caddis, a coding agent builds straight into the window you're looking at. Ask for a dashboard, a game, a data explorer or a 3D scene, watch it take shape, and keep talking until it's right. Then save it as one file to share or come back to.
+# Clay
+
+In Clay, a coding agent builds straight into the window you're looking at. Ask for a dashboard, a game, a data explorer or a 3D scene, watch it take shape, and keep talking until it's right. Then save it as one file to share or come back to.
 
 - **Builds live, in place.** The canvas updates as the agent edits it, without reloading, so a 3D scene keeps its camera and animation.
 - **Uses the agents you already have.** Claude, Codex, or any [Agent Client Protocol](https://agentclientprotocol.com) agent such as opencode, Gemini CLI or Cursor. If an agent is installed and signed in, it works out of the box with your existing login.
 - **A shared data store.** The page and the agent read and write the same data, so what the page saves, the agent can work with, and the other way round.
 - **Interactive pages.** What you do on the page reaches the agent with your next message: tick off a task, then ask about it.
-- **Save, share and open `.caddis` files.** One file holds the canvas, its data, the conversation and the files the agent wrote.
+- **Save, share and open `.clay` files.** One file holds the canvas, its data, the conversation and the files the agent wrote.
 - **Pick up where you left off.** Sessions save as you go. Reopen one and the canvas, data and conversation are as you left them.
 - **Undo and redo** for the canvas and the controls.
 - **Works in a real folder.** The agent can read and edit files and run commands in a working directory you choose, or a fresh temporary one.
@@ -19,9 +21,9 @@ In Caddis, a coding agent builds straight into the window you're looking at. Ask
 ## Requirements
 
 - [Claude Code](https://claude.com/claude-code), installed and logged in. A Pro or Max subscription works (`claude login`), and no API key is needed. On a machine without an interactive login, set `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`.
-- Optionally, other coding agents, each installed and signed in through its own CLI. Caddis lists every one it finds and you pick one per session:
+- Optionally, other coding agents, each installed and signed in through its own CLI. Clay lists every one it finds and you pick one per session:
   - [Codex](https://github.com/openai/codex) (`codex login`), driven through `codex app-server`.
-  - Any [Agent Client Protocol](https://agentclientprotocol.com) agent. Caddis knows how to start opencode, Gemini CLI, Cursor (`cursor-agent`), Grok Build, omp and Hermes Agent, and you can add others (see [Other agents](#other-agents)).
+  - Any [Agent Client Protocol](https://agentclientprotocol.com) agent. Clay knows how to start opencode, Gemini CLI, Cursor (`cursor-agent`), Grok Build, omp and Hermes Agent, and you can add others (see [Other agents](#other-agents)).
 - Node 24 or newer, only if you run from source.
 
 ## Install and run
@@ -30,16 +32,16 @@ In Caddis, a coding agent builds straight into the window you're looking at. Ask
 
 The quickest way to start. Get one from the [latest stable release](https://github.com/mcreenan/caddis/releases/latest), or from the [nightly release](https://github.com/mcreenan/caddis/releases/tag/nightly), which is rebuilt from `main` after every merge.
 
-| System                | File                 | Install                                   |
-| --------------------- | -------------------- | ----------------------------------------- |
-| macOS (Apple silicon) | `Caddis-*-arm64.dmg` | Open it and drag Caddis to Applications   |
-| Debian, Ubuntu        | `caddis_*_amd64.deb` | `sudo apt install ./caddis_*_amd64.deb`   |
-| Other Linux (x64)     | `Caddis-*.AppImage`  | `chmod +x Caddis-*.AppImage`, then run it |
+| System                | File               | Install                                 |
+| --------------------- | ------------------ | --------------------------------------- |
+| macOS (Apple silicon) | `Clay-*-arm64.dmg` | Open it and drag Clay to Applications   |
+| Debian, Ubuntu        | `clay_*_amd64.deb` | `sudo apt install ./clay_*_amd64.deb`   |
+| Other Linux (x64)     | `Clay-*.AppImage`  | `chmod +x Clay-*.AppImage`, then run it |
 
 The macOS app isn't notarized yet, so macOS blocks it the first time and may report that it's damaged. After moving it to Applications, clear the download flag once:
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/Caddis.app
+xattr -dr com.apple.quarantine /Applications/Clay.app
 ```
 
 ### Run from source
@@ -51,7 +53,9 @@ npm install
 npm start
 ```
 
-Ctrl/Cmd+N opens another window, which is a new session. You can also open a saved artifact directly: `npm run electron -- path/to/file.caddis`.
+On macOS, source runs prepare a local `.dev/Clay.app` bundle. The Dock and app menu use the Clay name and Pebble icon.
+
+Ctrl/Cmd+N opens another window, which is a new session. You can also open a saved artifact directly: `npm run electron -- path/to/file.clay`.
 
 ## Using it
 
@@ -60,7 +64,7 @@ Ctrl/Cmd+N opens another window, which is a new session. You can also open a sav
 3. **Keep talking.** After the first message the prompt shrinks to a single line, and the history panel shows Claude's replies and tool calls. The titlebar's history button collapses it to a small dot that pulses while Claude is working; click the dot or the button again to expand it.
 4. **Interact with the canvas.** Pages Claude builds can store data and send events that Claude sees with your next message. For example, tick off a task on the page, then ask Claude about it.
 5. **Let it restyle the controls.** Claude can move and restyle the prompt and history panel, within limits that keep them visible and usable.
-6. **Use the titlebar.** Caddis draws its own titlebar and keeps your system's window buttons. Claude can't restyle or cover it. From left to right, it has:
+6. **Use the titlebar.** Clay draws its own titlebar and keeps your system's window buttons. Claude can't restyle or cover it. From left to right, it has:
    - the menu button (Windows, Linux and the web; on macOS these items are in the system menu bar):
      - **File**: new window, open, save, save as and rename
      - **Canvas**: undo, redo, reload or clear the canvas
@@ -79,18 +83,22 @@ Ctrl/Cmd+N opens another window, which is a new session. You can also open a sav
 
 Sessions are saved automatically. Reopening one restores its canvas, data and controls.
 
-### Save and open `.caddis` files
+### Save and open `.clay` files
+
+New saves use `.clay`. Open accepts both `.clay` and `.caddis` files. When you save an older `.caddis` file, Clay asks for a `.clay` destination and keeps the original file.
+
+Clay reuses an existing Caddis desktop profile if no Clay profile exists. This keeps saved sessions and hub connections available. Environment variables now use the `CLAY_` prefix.
 
 The **File** menu (the titlebar's menu button, or the macOS menu bar) has:
 
 | Item       | Shortcut         | What it does                                                                             |
 | ---------- | ---------------- | ---------------------------------------------------------------------------------------- |
 | New window | Ctrl/Cmd+N       | Opens a window with a new session (a new tab on the web)                                 |
-| Open…      | Ctrl/Cmd+O       | Opens a `.caddis` file as a new session. A window still on the start card is reused      |
+| Open…      | Ctrl/Cmd+O       | Opens a `.clay` file as a new session. A window still on the start card is reused        |
 | Save       | Ctrl/Cmd+S       | Saves to the file this session came from or was last saved to (on the web, downloads it) |
 | Save as…   | Ctrl/Cmd+Shift+S | Saves to a new file                                                                      |
 
-A `.caddis` file is a zip archive you can inspect with any unzip tool:
+A `.clay` file is a zip archive you can inspect with any unzip tool:
 
 | Path                                        | Contents                                                                                                                                |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -105,7 +113,7 @@ A `.caddis` file is a zip archive you can inspect with any unzip tool:
 
 When you open a file:
 
-- The session keeps its original working directory if that folder exists on this machine. Otherwise it uses `CADDIS_DEFAULT_CWD` or a new temporary directory.
+- The session keeps its original working directory if that folder exists on this machine. Otherwise it uses `CLAY_DEFAULT_CWD` or a new temporary directory.
 - Workspace files are written back only into the original folder, and only when they're missing. Existing files are never overwritten.
 - Claude continues from a copy of the saved conversation, so the original session is left unchanged.
 - Other agents keep their conversations in their own stores, so the file can't carry them. On the machine that saved it, the agent continues from a fork of its conversation (or the conversation itself if it can't fork). Elsewhere it starts fresh with the canvas, data and history intact.
@@ -117,13 +125,13 @@ In its working directory, Claude can read and edit files and run shell commands 
 
 Codex works the same way in its `workspace-write` sandbox with network access, and never stops to ask for approval: anything outside the sandbox is declined.
 
-ACP agents apply their own settings, and Caddis answers their permission requests because there is no approval UI yet. It allows the canvas tools, reading, searching and fetching, and edits to files inside the working directory. It refuses everything else, including shell commands the agent asks about, and says so in the history. Set `CADDIS_ACP_PERMISSIONS=all` to allow everything.
+ACP agents apply their own settings, and Clay answers their permission requests because there is no approval UI yet. It allows the canvas tools, reading, searching and fetching, and edits to files inside the working directory. It refuses everything else, including shell commands the agent asks about, and says so in the history. Set `CLAY_ACP_PERMISSIONS=all` to allow everything.
 
-The canvas tools reach Codex and ACP agents through an MCP server that Caddis serves on a random loopback port, under a secret path for each session.
+The canvas tools reach Codex and ACP agents through an MCP server that Clay serves on a random loopback port, under a secret path for each session.
 
 ### Other agents
 
-To add an ACP agent Caddis doesn't know, list it in `acp-agents.json` in the data directory (`CADDIS_DATA_DIR`), or in `CADDIS_ACP_AGENTS` as JSON or the path to a JSON file:
+To add an ACP agent Clay doesn't know, list it in `acp-agents.json` in the data directory (`CLAY_DATA_DIR`), or in `CLAY_ACP_AGENTS` as JSON or the path to a JSON file:
 
 ```json
 [
@@ -141,11 +149,11 @@ An entry with the same `id` as a known agent (`opencode`, `gemini`, `cursor`, `g
 
 ### Use it from another device
 
-`npm run web` serves Caddis at `http://<this-machine>:5317` for browsers on your LAN or tailnet. It has **no authentication**, and Claude can run commands on this machine, so use it only on networks you trust.
+`npm run web` serves Clay at `http://<this-machine>:5317` for browsers on your LAN or tailnet. It has **no authentication**, and Claude can run commands on this machine, so use it only on networks you trust.
 
 ### Work together on a hub
 
-The hub is an optional server, and Caddis works fully without it. It holds **projects**, each with any number of artifacts, and keeps every project's history in git. Several people can work in the same artifact at once.
+The hub is an optional server, and Clay works fully without it. It holds **projects**, each with any number of artifacts, and keeps every project's history in git. Several people can work in the same artifact at once.
 
 ```sh
 npm run hub      # http://<this-machine>:5318; prints the access token
@@ -160,21 +168,21 @@ The token is shared and names aren't verified, so use a hub only with people you
 
 ### Settings
 
-| Variable                             | Purpose                                                                                                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `CADDIS_DEFAULT_CWD`                 | Default working directory (a new temporary directory for each session)                                       |
-| `CADDIS_DATA_DIR`                    | Where sessions are stored                                                                                    |
-| `CADDIS_CLAUDE_EXECUTABLE`           | Path to `claude`, if it isn't on `PATH`                                                                      |
-| `CADDIS_CODEX_EXECUTABLE`            | Path to `codex`, if it isn't on `PATH`                                                                       |
-| `CADDIS_ACP_AGENTS`                  | Extra ACP agents, as JSON or a file path (see [Other agents](#other-agents))                                 |
-| `CADDIS_ACP_PERMISSIONS`             | `all` lets ACP agents do anything they ask permission for                                                    |
-| `CADDIS_PERMISSION_MODE`             | Claude permission mode (default `acceptEdits`)                                                               |
-| `CADDIS_SANDBOX`                     | `0` turns off the command sandbox. Claude's commands then need pre-approval, and Codex runs with full access |
-| `CADDIS_SESSION` or `--session=<id>` | Reopen a specific session                                                                                    |
-| `HOST`, `PORT`                       | Web server address (`0.0.0.0`, `5317`; the hub defaults to `5318`)                                           |
-| `CADDIS_HUB_DIR`                     | Hub: where projects and their git repositories are kept (`hub-data/`)                                        |
-| `CADDIS_HUB_TOKEN`                   | Hub: the access token (generated once and kept in the hub's directory if unset)                              |
-| `CADDIS_HUB_NAME`                    | Hub: the name people see when joining (the host name)                                                        |
+| Variable                           | Purpose                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `CLAY_DEFAULT_CWD`                 | Default working directory (a new temporary directory for each session)                                       |
+| `CLAY_DATA_DIR`                    | Where sessions are stored                                                                                    |
+| `CLAY_CLAUDE_EXECUTABLE`           | Path to `claude`, if it isn't on `PATH`                                                                      |
+| `CLAY_CODEX_EXECUTABLE`            | Path to `codex`, if it isn't on `PATH`                                                                       |
+| `CLAY_ACP_AGENTS`                  | Extra ACP agents, as JSON or a file path (see [Other agents](#other-agents))                                 |
+| `CLAY_ACP_PERMISSIONS`             | `all` lets ACP agents do anything they ask permission for                                                    |
+| `CLAY_PERMISSION_MODE`             | Claude permission mode (default `acceptEdits`)                                                               |
+| `CLAY_SANDBOX`                     | `0` turns off the command sandbox. Claude's commands then need pre-approval, and Codex runs with full access |
+| `CLAY_SESSION` or `--session=<id>` | Reopen a specific session                                                                                    |
+| `HOST`, `PORT`                     | Web server address (`0.0.0.0`, `5317`; the hub defaults to `5318`)                                           |
+| `CLAY_HUB_DIR`                     | Hub: where projects and their git repositories are kept (`hub-data/`)                                        |
+| `CLAY_HUB_TOKEN`                   | Hub: the access token (generated once and kept in the hub's directory if unset)                              |
+| `CLAY_HUB_NAME`                    | Hub: the name people see when joining (the host name)                                                        |
 
 ## Development
 
@@ -191,7 +199,7 @@ npm run dist        # installer for this OS in dist/ (also dist:linux, dist:mac)
 | Path           | Contents                                                       |
 | -------------- | -------------------------------------------------------------- |
 | `src/main`     | Electron main process                                          |
-| `src/preload`  | Preload bridge (`window.caddis`)                               |
+| `src/preload`  | Preload bridge (`window.clay`)                                 |
 | `src/renderer` | React UI: chrome, prompt and history                           |
 | `src/canvas`   | Runtime served into the sandboxed canvas frame                 |
 | `src/core`     | Sessions, agent providers, tools and artifacts, shared by both |

@@ -10,7 +10,7 @@ import { TOOL_DEFS, type ToolDef, type ToolOutput, type ToolSet } from "./tools"
 /**
  * The agent link: how a person's own machine lends its coding agents to a hub.
  *
- * Agents never run on the hub. Each person runs an agent host (the Caddis app,
+ * Agents never run on the hub. Each person runs an agent host (the Clay app,
  * or `npm run agent`) that connects to the hub's `/agent` endpoint with the
  * hub token and their name. The hub sends it turns; the host runs them with
  * the provider installed and signed in on that machine, in a working
@@ -67,7 +67,7 @@ export const HUB_TOOL_DEFS = [...TOOL_DEFS, ...ROOM_TOOL_DEFS];
 export function hubSystemPrompt(cwd: string, label: string) {
   return `${canvasSystemPrompt(cwd)}
 
-Shared canvas: you are ${label}, running on your owner's machine and connected to a Caddis hub. Several people, each with their own agent, share this project and canvas. Every message tells you who it is from. Messages people and other agents posted since your last turn arrive in a <room> block: treat them as context, and act only on the message addressed to you. Only one agent works on a canvas at a time, so keep turns focused. room_who lists who is here; agent_message hands work to another agent. Your working directory is on your owner's machine and is not shared.`;
+Shared canvas: you are ${label}, running on your owner's machine and connected to a Clay hub. Several people, each with their own agent, share this project and canvas. Every message tells you who it is from. Messages people and other agents posted since your last turn arrive in a <room> block: treat them as context, and act only on the message addressed to you. Only one agent works on a canvas at a time, so keep turns focused. room_who lists who is here; agent_message hands work to another agent. Your working directory is on your owner's machine and is not shared.`;
 }
 
 /** Where the host keeps provider conversations and working directories per artifact. */
@@ -155,7 +155,7 @@ export class AgentLink {
   }
 
   private log(msg: string) {
-    (this.o.log ?? console.log)(`[caddis agent] ${msg}`);
+    (this.o.log ?? console.log)(`[clay agent] ${msg}`);
   }
 
   private send(msg: AgentToHub) {

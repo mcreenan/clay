@@ -23,7 +23,7 @@ import { Room, type AgentConn } from "./room";
  * several people work in the same artifact at once, and keeps every project
  * in git. It runs no agents itself; see src/core/agentLink.ts.
  *
- * UI clients speak the ordinary Caddis protocol over `/ws`, plus the hub
+ * UI clients speak the ordinary Clay protocol over `/ws`, plus the hub
  * messages (hub.join, project.*, artifact.create/leave, revisions.*).
  */
 
@@ -237,7 +237,7 @@ export class Hub {
   /** Commit the artifact as it is now, attributed to whoever changed it since the last commit. */
   private async commit(o: Open) {
     clearTimeout(o.timer);
-    const p = o.pending ?? { author: "Caddis hub", notes: [] };
+    const p = o.pending ?? { author: "Clay hub", notes: [] };
     o.pending = undefined;
     const msg = p.notes.length ? p.notes.join("; ").slice(0, 200) : `Update ${o.session.title}`;
     const commit = await this.store.commitArtifact(o.projectId, o.session.state, msg, gitAuthor(p.author));

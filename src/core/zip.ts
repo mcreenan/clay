@@ -2,7 +2,7 @@ import { crc32, deflateRawSync, inflateRawSync } from "node:zlib";
 
 /**
  * Minimal zip writer/reader (deflate or stored, no zip64, no encryption), enough
- * for `.caddis` artifacts without a dependency. Archives stay well under 4 GB.
+ * for `.clay` artifacts without a dependency. Archives stay well under 4 GB.
  */
 
 export interface ZipEntry {

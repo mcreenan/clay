@@ -1,13 +1,13 @@
-# Caddis hub (prototype)
+# Clay hub (prototype)
 
-The hub is an optional server for working together. It keeps **projects**, each holding several **artifacts** (canvases). It lets several people work in the same artifact at once and records every change in a **git** repository per project. Caddis still works entirely on one machine without it.
+The hub is an optional server for working together. It keeps **projects**, each holding several **artifacts** (canvases). It lets several people work in the same artifact at once and records every change in a **git** repository per project. Clay still works entirely on one machine without it.
 
 The hub **runs no agents**. Each person's coding agents stay on their own machine, signed in with their own accounts. A turn run there is shown to everyone as "Matt's agent". People can message each other in an artifact, and agents can hand work to each other.
 
 The types live in [`src/shared/protocol.ts`](../src/shared/protocol.ts) (UI ⇄ hub) and [`src/core/agentLink.ts`](../src/core/agentLink.ts) (agent host ⇄ hub). This file is the prose version.
 
 ```
- browser tab ─────────┐  WS /ws (Caddis protocol + hub messages)
+ browser tab ─────────┐  WS /ws (Clay protocol + hub messages)
  desktop app window ──┤  (main relays the window's IPC to /ws)        ┌──────────────────────────────┐
                       ├─────────────────────────────────────────────▶ │ hub (npm run hub)            │
                       │                                               │  projects/<id>/  git repo    │
@@ -22,12 +22,12 @@ The types live in [`src/shared/protocol.ts`](../src/shared/protocol.ts) (UI ⇄ 
 npm run hub                    # http://0.0.0.0:5318; prints the access token
 ```
 
-| Variable           | Purpose                                                          |
-| ------------------ | ---------------------------------------------------------------- |
-| `CADDIS_HUB_DIR`   | Where projects and state live (default `hub-data/`)              |
-| `CADDIS_HUB_TOKEN` | Access token (default: generated once and kept in `<dir>/token`) |
-| `CADDIS_HUB_NAME`  | Name shown to people joining (default: the host name)            |
-| `HOST`, `PORT`     | Listen address (`0.0.0.0`, `5318`)                               |
+| Variable         | Purpose                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `CLAY_HUB_DIR`   | Where projects and state live (default `hub-data/`)              |
+| `CLAY_HUB_TOKEN` | Access token (default: generated once and kept in `<dir>/token`) |
+| `CLAY_HUB_NAME`  | Name shown to people joining (default: the host name)            |
+| `HOST`, `PORT`   | Listen address (`0.0.0.0`, `5318`)                               |
 
 **Joining.**
 
@@ -41,7 +41,7 @@ npm run hub                    # http://0.0.0.0:5318; prints the access token
 
 ## Model
 
-- **Project:** a name and a git repository. **Artifact:** one canvas in a project. It is an ordinary Caddis session (canvas, data store, history, undo), held by the hub.
+- **Project:** a name and a git repository. **Artifact:** one canvas in a project. It is an ordinary Clay session (canvas, data store, history, undo), held by the hub.
 - **People.** Joining takes a name and the shared token. The name becomes your id (`Matt` → `matt`).
 - **Agents.** An agent host connects with the same token and a name, and offers the providers signed in on that machine. Its label is "<name>'s agent".
 - **Viewing.** Everyone viewing an artifact gets every change live: canvas edits, data writes, chrome, undo and history. This uses the session broadcast that already keeps several windows in sync. The titlebar shows who is viewing.
@@ -69,7 +69,7 @@ npm run hub                    # http://0.0.0.0:5318; prints the access token
 ## Storage and revision history
 
 ```
-<CADDIS_HUB_DIR>/
+<CLAY_HUB_DIR>/
   token
   state/<artifact>.json                live session state (undo, activity log); not in git
   projects/<project>/                  a git repository
@@ -87,7 +87,7 @@ npm run hub                    # http://0.0.0.0:5318; prints the access token
 - Once per agent turn: anything pending is committed when the turn starts, and the turn's own changes when it ends. The agent is the author and the prompt is the subject.
 - Other changes (people's edits, page data writes, messages): after 3 seconds of quiet, authored by the first person who changed something.
 
-The commit author is a person or "<name>'s agent"; the committer is "Caddis hub". The tree is written inside the same serialized git queue as the commit, from a snapshot taken when the commit was asked for, so a fast follow-up turn can't leak into an earlier commit.
+The commit author is a person or "<name>'s agent"; the committer is "Clay hub". The tree is written inside the same serialized git queue as the commit, from a snapshot taken when the commit was asked for, so a fast follow-up turn can't leak into an earlier commit.
 
 The titlebar's history button lists an artifact's commits. **Restore** puts the canvas and data store back as they were at that commit. The restore is one undoable step, and it is committed as a new revision, so history is never rewritten.
 
@@ -95,7 +95,7 @@ The titlebar's history button lists an artifact's commits. **Restore** puts the 
 
 ### UI ⇄ hub (`/ws`)
 
-The hub speaks the ordinary Caddis protocol (v2) for everything inside an artifact. The only difference is that `welcome` carries `hub: { name }`, and the client must join before anything else:
+The hub speaks the ordinary Clay protocol (v2) for everything inside an artifact. The only difference is that `welcome` carries `hub: { name }`, and the client must join before anything else:
 
 | Client → hub                            | Reply / effect                                                                       |
 | --------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -106,7 +106,7 @@ The hub speaks the ordinary Caddis protocol (v2) for everything inside an artifa
 | `artifact.create {projectId}`           | `artifact.created {projectId, artifactId}`; the client then sends `hello`            |
 | `hello {v, sessionId: artifactId}`      | `project`, then `session.snapshot`; everyone in the artifact gets `presence {users}` |
 | `artifact.leave`                        | detaches; `presence` updates                                                         |
-| `artifact.import {data, name}`          | a `.caddis` file becomes a new artifact in the open project; `artifact.opened`       |
+| `artifact.import {data, name}`          | a `.clay` file becomes a new artifact in the open project; `artifact.opened`         |
 | `prompt {text, to?: {agent, provider}}` | without `to`: a message for everyone; with `to`: a turn for that agent (yours only)  |
 | `revisions.list`                        | `revisions {revisions}`                                                              |
 | `revisions.restore {commit}`            | `canvas.state` and `data.changed` for everyone, then `revisions`                     |
@@ -144,7 +144,7 @@ This is a prototype for a trusted group on a LAN or tailnet.
 
 **Trust:**
 
-- **Identity.** The token is shared. Anyone who has it can join under any name, including someone else's, and then prompt that person's agent. Agents run in the same sandbox as in local Caddis: commands can write only inside their working directory, and network access is allowed. Don't share the token beyond people you'd let use your agent.
+- **Identity.** The token is shared. Anyone who has it can join under any name, including someone else's, and then prompt that person's agent. Agents run in the same sandbox as in local Clay: commands can write only inside their working directory, and network access is allowed. Don't share the token beyond people you'd let use your agent.
 - **Access.** There are no per-project permissions. Every member can see and change every project.
 
 **Concurrency:**
@@ -159,5 +159,5 @@ This is a prototype for a trusted group on a LAN or tailnet.
 
 **Not built yet:**
 
-- **The desktop app.** File → Save exports the open artifact to a `.caddis` file, and File → Open imports one into the open project. New windows join the same hub.
+- **The desktop app.** File → Save exports the open artifact to a `.clay` file, and File → Open imports one into the open project. New windows join the same hub.
 - **Collaboration features:** live cursors, comments, branching, and per-person undo.

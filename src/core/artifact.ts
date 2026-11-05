@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSyn
 import os from "node:os";
 import path from "node:path";
 import pkg from "../../package.json";
+import { ARTIFACT_EXT } from "../shared/artifact";
 import {
   CANVAS_MODES,
   RESOURCE_NAME_RE,
@@ -19,8 +20,10 @@ import {
 import type { Persisted, UndoEntry } from "./session";
 import { readZip, writeZip, type ZipEntry } from "./zip";
 
+export { ARTIFACT_EXT } from "../shared/artifact";
+
 /**
- * `.caddis` artifacts: a zip holding everything needed to reopen a session
+ * `.clay` artifacts: a zip holding everything needed to reopen a session
  * elsewhere, plus a manifest that lists (and checksums) every file in it.
  *
  *   manifest.json            this index
@@ -35,9 +38,8 @@ import { readZip, writeZip, type ZipEntry } from "./zip";
  *   preview.png              what the window looked like when saved
  */
 
-export const ARTIFACT_FORMAT = "caddis-artifact";
+export const ARTIFACT_FORMAT = "clay-artifact";
 export const ARTIFACT_VERSION = 1;
-export const ARTIFACT_EXT = "caddis";
 
 const MAX_WORKSPACE_FILE = 8 * 1024 * 1024;
 const MAX_WORKSPACE_TOTAL = 64 * 1024 * 1024;
@@ -72,9 +74,9 @@ export interface ManifestFile {
 }
 
 export interface Manifest {
-  format: typeof ARTIFACT_FORMAT;
+  format: typeof ARTIFACT_FORMAT | "caddis-artifact";
   version: number;
-  app: { name: "caddis"; version: string };
+  app: { name: "clay" | "caddis"; version: string };
   savedAt: number;
   title: string;
   /** `title` is set when the agent or user named the session; the top-level `title` always has a value. */
@@ -263,7 +265,7 @@ export function buildArtifact(d: Persisted, preview?: Buffer): { buffer: Buffer;
   const manifest: Manifest = {
     format: ARTIFACT_FORMAT,
     version: ARTIFACT_VERSION,
-    app: { name: "caddis", version: pkg.version },
+    app: { name: "clay", version: pkg.version },
     savedAt: Date.now(),
     title: sessionTitle(d),
     session: {
@@ -296,12 +298,13 @@ export function buildArtifact(d: Persisted, preview?: Buffer): { buffer: Buffer;
 export function parseArtifact(buf: Buffer): ParsedArtifact {
   const zip = readZip(buf);
   const mf = zip.get("manifest.json");
-  if (!mf) throw new Error("not a Caddis artifact (no manifest.json)");
+  if (!mf) throw new Error("not a Clay artifact (no manifest.json)");
   const manifest = JSON.parse(mf.toString("utf8")) as Manifest;
-  if (manifest?.format !== ARTIFACT_FORMAT) throw new Error("not a Caddis artifact");
+  if (manifest?.format !== ARTIFACT_FORMAT && manifest?.format !== "caddis-artifact")
+    throw new Error("not a Clay artifact");
   if (typeof manifest.version !== "number" || manifest.version > ARTIFACT_VERSION)
     throw new Error(
-      `this artifact needs a newer Caddis (format v${manifest.version}; this build reads v${ARTIFACT_VERSION})`,
+      `this artifact needs a newer Clay (format v${manifest.version}; this build reads v${ARTIFACT_VERSION})`,
     );
   if (!Array.isArray(manifest.files)) throw new Error("manifest has no file list");
 

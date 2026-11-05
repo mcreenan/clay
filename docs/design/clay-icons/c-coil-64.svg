@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 128 128" role="img" aria-label="Clay Coil icon"><defs><radialGradient id="body" cx=".32" cy=".2" r=".92"><stop stop-color="#D8C7E7"/><stop offset=".6" stop-color="#B09BCB"/><stop offset="1" stop-color="#7A6697"/></radialGradient></defs><path d="M62 15C87 13 109 32 113 56C120 82 101 108 78 113C49 120 20 106 14 81C6 53 25 24 49 18C53 16 58 15 62 15Z" fill="url(#body)"/>
+      <path d="M26 45C35 23 73 18 91 36C108 51 107 77 90 88C78 97 58 99 43 89" fill="none" stroke="#7C6895" stroke-width="12" stroke-linecap="round" opacity=".38"/>
+      <path d="M25 41C37 20 72 20 90 36C105 49 103 74 89 83C76 93 58 93 45 86" fill="none" stroke="#D6C4E7" stroke-width="10" stroke-linecap="round"/>
+      <path d="M25 74C29 93 49 106 72 104" fill="none" stroke="#DFD1EC" stroke-width="6" stroke-linecap="round" opacity=".65"/>
+      <rect x="43" y="49" width="10" height="20" rx="5" fill="#382E48"/>
+      <rect x="70" y="49" width="10" height="20" rx="5" fill="#382E48"/></svg>

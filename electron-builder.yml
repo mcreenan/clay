@@ -1,6 +1,6 @@
 # Installers: `npm run dist` (current OS), `npm run dist:linux`, `npm run dist:mac`. Output goes to dist/.
-appId: dev.mcreenan.caddis
-productName: Caddis
+appId: dev.mcreenan.clay
+productName: Clay
 copyright: Copyright © 2026 Matt Creenan
 directories:
   output: dist
@@ -13,7 +13,7 @@ files:
   - out/renderer/**
   # Served raw to the canvas frame at runtime (with d3/three/idiomorph from node_modules).
   - src/canvas/**
-  # Caddis drives the user's installed `claude` CLI, so skip the SDK's ~250 MB bundled binary.
+  # Clay drives the user's installed `claude` CLI, so skip the SDK's ~250 MB bundled binary.
   - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   # Not loaded at runtime: TypeScript sources, typings, source maps, the SDK's browser build.
   - "!**/node_modules/three/src/**"
@@ -26,17 +26,24 @@ onNodeModuleFile: ./scripts/builder-hooks.mjs
 electronLanguages: [en-US]
 compression: maximum
 fileAssociations:
+  - ext: clay
+    name: Clay artifact
+    description: Clay artifact
+    mimeType: application/x-clay
+    role: Editor
   - ext: caddis
-    name: Caddis artifact
-    description: Caddis artifact
+    name: Clay artifact
+    description: Legacy Clay artifact
     mimeType: application/x-caddis
     role: Editor
 linux:
+  icon: build/icons
   target: [AppImage, deb]
   category: Development
   maintainer: Matt Creenan <mattcreenan@gmail.com>
   synopsis: A malleable canvas built live by a coding agent
 mac:
+  icon: build/icon.icns
   target: [dmg]
   category: public.app-category.developer-tools
   # Ad-hoc signed until a Developer ID certificate is set up: Apple silicon won't run unsigned code, and an

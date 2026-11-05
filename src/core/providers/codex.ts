@@ -19,7 +19,7 @@ import type { AgentProvider, AgentRun, ProviderContext, ProviderEvent } from "./
 const EFFORT_LABELS: Record<string, string> = { none: "None", minimal: "Minimal", ultra: "Ultra" };
 
 export function resolveCodexExecutable(): string | undefined {
-  return process.env.CADDIS_CODEX_EXECUTABLE || findExecutable("codex");
+  return process.env.CLAY_CODEX_EXECUTABLE || findExecutable("codex");
 }
 
 /** Newline-delimited JSON-RPC as `codex app-server` speaks it (no "jsonrpc" field). */
@@ -90,7 +90,7 @@ class AppServer {
 
   async initialize() {
     await this.request("initialize", {
-      clientInfo: { name: "caddis", title: "Caddis", version: "0.2" },
+      clientInfo: { name: "clay", title: "Clay", version: "0.2" },
       capabilities: { experimentalApi: false, requestAttestation: false },
     });
     this.notify("initialized");
@@ -120,7 +120,7 @@ export class CodexProvider implements AgentProvider {
   async discover(): Promise<ProviderInfo> {
     const info: ProviderInfo = { id: "codex", label: "Codex", enabled: false, models: [], effortLabels: EFFORT_LABELS };
     const exe = resolveCodexExecutable();
-    if (!exe) return { ...info, note: "codex CLI not found on PATH (set CADDIS_CODEX_EXECUTABLE)" };
+    if (!exe) return { ...info, note: "codex CLI not found on PATH (set CLAY_CODEX_EXECUTABLE)" };
     const server = new AppServer(exe, [], os.homedir());
     try {
       return await withTimeout(
@@ -193,7 +193,7 @@ class CodexRun implements AgentRun {
 
   private async boot(mcp: McpHost) {
     const exe = resolveCodexExecutable();
-    if (!exe) throw new Error("codex CLI not found on PATH (set CADDIS_CODEX_EXECUTABLE)");
+    if (!exe) throw new Error("codex CLI not found on PATH (set CLAY_CODEX_EXECUTABLE)");
     const endpoint = await mcp.register(this.ctx.tools);
     this.disposeMcp = () => endpoint.dispose();
     if (this.closed) return endpoint.dispose();
@@ -221,7 +221,7 @@ class CodexRun implements AgentRun {
     server.onRequest = (m, p) => this.onRequest(m, p);
     await server.initialize();
 
-    const sandboxOff = process.env.CADDIS_SANDBOX === "0";
+    const sandboxOff = process.env.CLAY_SANDBOX === "0";
     const overrides = {
       model: config.model || null,
       cwd: config.cwd,
@@ -246,7 +246,7 @@ class CodexRun implements AgentRun {
         });
       }
     }
-    res ??= await server.request("thread/start", { ...overrides, serviceName: "caddis" });
+    res ??= await server.request("thread/start", { ...overrides, serviceName: "clay" });
     this.threadId = res.thread.id;
     this.emit({ type: "session-id", id: res.thread.id });
     this.pump();
@@ -266,7 +266,7 @@ class CodexRun implements AgentRun {
       case "item/tool/requestUserInput":
         return { answers: {} };
     }
-    throw new Error(`caddis does not handle ${method}`);
+    throw new Error(`clay does not handle ${method}`);
   }
 
   private onNotification(method: string, p: any) {

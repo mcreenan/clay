@@ -1,4 +1,4 @@
-# Caddis protocol (v2)
+# Clay protocol (v2)
 
 The source of truth is [`src/shared/protocol.ts`](../src/shared/protocol.ts), and the tool schemas are in [`src/core/tools.ts`](../src/core/tools.ts). This file is the prose version.
 
@@ -91,8 +91,8 @@ The import map exposes `three`, `three/addons/…`, `d3`, `idiomorph` and `canva
 | `chrome.set {component, props}` / `chrome.reset {component?}` | User changes (titlebar menu), through the same clamps                                          |
 | `undo` / `redo` / `canvas.clear` / `canvas.reload`            | Titlebar and menu actions                                                                      |
 | `title.set {title}`                                           | The user renames the session. Empty clears it, going back to the automatic title. Not undoable |
-| `artifact.export`                                             | Web: package the session as a `.caddis` file. Answered by `artifact.file`                      |
-| `artifact.import {data, name?}`                               | Web: open a `.caddis` file (base64) as a new session. Answered by `artifact.opened`            |
+| `artifact.export`                                             | Web: package the session as a `.clay` file. Answered by `artifact.file`                        |
+| `artifact.import {data, name?}`                               | Web: open a `.clay` file (base64) as a new session. Answered by `artifact.opened`              |
 | `frame.*`                                                     | Frame reports relayed by the UI. See hop 2                                                     |
 
 **Core → client**
@@ -109,7 +109,7 @@ The import map exposes `three`, `three/addons/…`, `d3`, `idiomorph` and `canva
 | `data.changed {key, value?, deleted?, source}`                       | A store update from another source                                                                                                                                                                                                         |
 | `frame.request {requestId, request}`                                 | `eval`, `view`, `stats` or `dom`, answered by `frame.result`                                                                                                                                                                               |
 | `frame.chrome.result {requestId, result}`                            | The reply to a page's `canvas.chrome.set`                                                                                                                                                                                                  |
-| `artifact.file {name, data}`                                         | A `.caddis` file (base64) to download                                                                                                                                                                                                      |
+| `artifact.file {name, data}`                                         | A `.clay` file (base64) to download                                                                                                                                                                                                        |
 | `artifact.opened {sessionId}`                                        | An artifact was opened as a new session. A window on the start card attaches to it with `hello`                                                                                                                                            |
 | `artifact.saved {name}`                                              | Electron: the session was saved to a file. `session.snapshot` carries the same name as `file`                                                                                                                                              |
 | `title {title?}`                                                     | The session was named or its title was cleared                                                                                                                                                                                             |
@@ -119,7 +119,7 @@ Several clients may view one session. The most recently ready one is the **prima
 
 ## 3. Hop 2: UI ⇄ canvas frame
 
-Every message is `{ch: "caddis", v: 2, type, …}`. Sends use `postMessage(…, "*")`, because the frame's origin is opaque. The host only accepts messages whose `event.source` is its own iframe.
+Every message is `{ch: "clay", v: 2, type, …}`. Sends use `postMessage(…, "*")`, because the frame's origin is opaque. The host only accepts messages whose `event.source` is its own iframe.
 
 | Host → frame                   |                                                                                        |
 | ------------------------------ | -------------------------------------------------------------------------------------- |

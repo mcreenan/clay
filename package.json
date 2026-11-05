@@ -1,5 +1,5 @@
 {
-  "name": "caddis",
+  "name": "clay",
   "version": "0.3.0",
   "private": true,
   "description": "A malleable canvas built live by a coding agent",
@@ -23,9 +23,10 @@
     "agent": "vp pack && node out/server/agent.mjs",
     "check": "vp check",
     "fix": "vp check --fix",
+    "icons": "node scripts/build-icons.mjs",
     "test": "vp test run",
     "e2e": "vp build && npm run e2e:only",
-    "e2e:only": "CADDIS_E2E=1 vp test run --project e2e",
+    "e2e:only": "CLAY_E2E=1 vp test run --project e2e",
     "dist": "vp build && electron-builder --publish never",
     "dist:linux": "vp build && electron-builder --linux --publish never",
     "dist:mac": "vp build && electron-builder --mac --publish never",
@@ -61,5 +62,5 @@
   "overrides": {
     "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0"
   },
-  "productName": "Caddis"
+  "productName": "Clay"
 }

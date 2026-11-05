@@ -305,6 +305,7 @@ export function StartCard() {
         start();
       }}
     >
+      <img className="start-logo" src="./icon.svg" width={64} height={64} alt="" draggable={false} />
       <h1 className="start-title">What should we make?</h1>
 
       <div className="composer bezel">
@@ -423,12 +424,12 @@ export function StartCard() {
         <button
           type="button"
           className="link"
-          title="Open a saved .caddis artifact"
+          title="Open a saved .clay or .caddis artifact"
           disabled={!connected}
           onClick={fileOpen}
         >
           <Glyph d="M4 2h5l3 3v9H4ZM9 2v3h3" size={13} />
-          Open .caddis file…
+          Open .clay file…
         </button>
         <ConnectHubLink />
       </div>

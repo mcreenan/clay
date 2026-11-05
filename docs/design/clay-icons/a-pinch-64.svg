@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 128 128" role="img" aria-label="Clay Pinch icon"><defs><radialGradient id="body" cx=".32" cy=".2" r=".92"><stop stop-color="#E4AA83"/><stop offset=".6" stop-color="#C77756"/><stop offset="1" stop-color="#8F4935"/></radialGradient></defs><path d="M21 43C27 29 36 24 49 23C54 13 66 13 74 20C91 16 105 29 107 44C120 59 116 80 106 91C99 106 81 113 63 111C46 115 26 108 20 94C7 84 9 64 16 54C15 49 17 45 21 43Z" fill="url(#body)"/>
+      <path d="M27 44C32 32 45 29 52 30C55 23 61 21 67 23" fill="none" stroke="#F5C9A5" stroke-width="5" stroke-linecap="round" opacity=".65"/>
+      <path d="M91 90C84 99 70 102 58 100" fill="none" stroke="#8B4936" stroke-width="4" stroke-linecap="round" opacity=".28"/>
+      <path d="M80 28C83 28 87 30 88 33" fill="none" stroke="#9F573F" stroke-width="3" stroke-linecap="round" opacity=".45"/>
+      <ellipse cx="48" cy="61" rx="11" ry="14" fill="#FFF0DA" transform="rotate(-6 48 61)"/>
+      <ellipse cx="79" cy="61" rx="11" ry="14" fill="#FFF0DA" transform="rotate(6 79 61)"/>
+      <rect x="47" y="55" width="7" height="14" rx="3.5" fill="#392A25"/>
+      <rect x="78" y="55" width="7" height="14" rx="3.5" fill="#392A25"/></svg>

@@ -142,7 +142,7 @@ export function JoinCard() {
       <div className="hub-actions">
         {DESKTOP && (
           <button type="button" className="link" onClick={() => connectHub(undefined)}>
-            Use Caddis on this machine
+            Use Clay on this machine
           </button>
         )}
         <span className="composer-gap" />

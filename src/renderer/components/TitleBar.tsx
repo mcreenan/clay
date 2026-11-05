@@ -29,7 +29,7 @@ import { Avatar, ago } from "./Hub";
 const MAC_UI = /Mac|iPhone|iPad/.test(navigator.platform);
 const mod = MAC_UI ? "⌘" : "Ctrl+";
 /** Electron on macOS fills the native menu bar instead of showing a menu button. */
-const NATIVE_MENU = window.caddis?.os === "darwin";
+const NATIVE_MENU = window.clay?.os === "darwin";
 const DESKTOP = transport.platform === "electron";
 
 type MenuItem = { label: string; key?: string; run: () => void; disabled?: boolean; testid?: string } | "-";
@@ -56,7 +56,7 @@ function useMenus(): Menu[] {
       label: "File",
       items: [
         ...hubItems,
-        { label: "New window", key: window.caddis ? `${mod}N` : undefined, run: fileNew },
+        { label: "New window", key: window.clay ? `${mod}N` : undefined, run: fileNew },
         { label: "Open…", key: `${mod}O`, run: fileOpen },
         "-",
         { label: "Save", key: `${mod}S`, run: () => fileSave(false), disabled: !inSession },
@@ -522,7 +522,7 @@ function useTitle() {
   );
   const title = chosen?.by === "user" ? chosen.text : (file ?? chosen?.text ?? first);
   useEffect(() => {
-    document.title = title ? `${title} — Caddis` : "Caddis";
+    document.title = title ? `${title} — Clay` : "Clay";
   }, [title]);
   return title;
 }
@@ -584,7 +584,8 @@ function Title() {
       data-testid="title"
       onDoubleClick={inSession ? () => useUi.setState({ renaming: true }) : undefined}
     >
-      <span className={inSession ? "tb-title-text" : undefined}>{title ?? "Caddis"}</span>
+      <img className="tb-app-icon" src="./favicon.svg" width={16} height={16} alt="" draggable={false} />
+      <span className={inSession ? "tb-title-text" : undefined}>{title ?? "Clay"}</span>
     </div>
   );
 }
@@ -592,7 +593,7 @@ function Title() {
 export function TitleBar() {
   const inSession = useUi((s) => s.phase === "session");
   const onHub = useUi((s) => Boolean(s.hub && s.me));
-  const os = window.caddis?.os;
+  const os = window.clay?.os;
   return (
     <header
       className={`titlebar${os === "darwin" ? " mac" : os ? " wco" : ""}`}

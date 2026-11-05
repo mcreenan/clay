@@ -41,9 +41,9 @@ jobs:
           cache: true
       - run: npm run dist:${{ matrix.target }} -- -c.extraMetadata.version=${{ inputs.version }}
       - if: matrix.target == 'mac'
-        run: codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Caddis.app
+        run: codesign --verify --deep --strict --verbose=2 dist/mac-arm64/Clay.app
       - uses: actions/upload-artifact@v7
         with:
-          name: caddis-${{ matrix.target }}-${{ inputs.version }}
+          name: clay-${{ matrix.target }}-${{ inputs.version }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error

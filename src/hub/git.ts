@@ -66,8 +66,8 @@ export class Repo {
       await run(this.dir, ["commit", "-q", "--no-verify", "-m", message], {
         GIT_AUTHOR_NAME: author.name,
         GIT_AUTHOR_EMAIL: author.email,
-        GIT_COMMITTER_NAME: "Caddis hub",
-        GIT_COMMITTER_EMAIL: "hub@caddis.local",
+        GIT_COMMITTER_NAME: "Clay hub",
+        GIT_COMMITTER_EMAIL: "hub@clay.local",
       });
       return String(await run(this.dir, ["rev-parse", "HEAD"])).trim();
     });

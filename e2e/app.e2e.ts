@@ -56,7 +56,7 @@ const fe = async <T>(fn: string): Promise<T> => (await frame()).evaluate(fn) as 
 
 async function launch(sessionArg?: string) {
   if (TARGET === "electron") {
-    const env = { ...process.env, CADDIS_DATA_DIR: DATA, CADDIS_DEFAULT_CWD: CWD } as Record<string, string>;
+    const env = { ...process.env, CLAY_DATA_DIR: DATA, CLAY_DEFAULT_CWD: CWD } as Record<string, string>;
     delete env.ANTHROPIC_API_KEY;
     if (!env.XDG_SESSION_TYPE && env.WAYLAND_DISPLAY) env.XDG_SESSION_TYPE = "wayland";
     app = await _electron.launch({ args: [".", ...(sessionArg ? [`--session=${sessionArg}`] : [])], env });
@@ -414,8 +414,8 @@ async function main() {
   check("restart restores the chrome (prompt at top)", !!pb && pb.y < 120, pb);
   await shot("8-restored");
 
-  // ---------------------------------------------------------------- 9. save as a .caddis artifact, open it, keep talking
-  const file = path.join(OUT, "session.caddis");
+  // ---------------------------------------------------------------- 9. save as a .clay artifact, open it, keep talking
+  const file = path.join(OUT, "session.clay");
   const openFileMenu = async () => {
     await page.locator('[data-testid="titlebar"]').getByRole("button", { name: "Menu" }).click();
     await page.getByRole("menuitem", { name: /^file/i }).hover();
@@ -436,7 +436,7 @@ async function main() {
     ]);
     await dl.saveAs(file);
   }
-  check("saved a .caddis file", existsSync(file));
+  check("saved a .clay file", existsSync(file));
   const art = parseArtifact(readFileSync(file));
   const paths = art.manifest.files.map((f) => f.path);
   summary.artifact = { files: paths, notes: art.manifest.notes, title: art.manifest.title };
@@ -497,7 +497,7 @@ async function main() {
   await close();
 }
 
-test(`caddis e2e (${TARGET})`, async () => {
+test(`clay e2e (${TARGET})`, async () => {
   try {
     await main();
   } catch (e: any) {

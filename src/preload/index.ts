@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { CaddisBridge } from "../shared/bridge";
+import type { ClayBridge } from "../shared/bridge";
 import type { ServerMsg, UiCommand } from "../shared/protocol";
 
-const api: CaddisBridge = {
+const api: ClayBridge = {
   platform: "electron",
   os: process.platform,
   frameUrl: "canvas://app/frame/index.html",
@@ -24,4 +24,4 @@ const api: CaddisBridge = {
   file: (cmd) => ipcRenderer.send("ac:file", cmd),
 };
 
-contextBridge.exposeInMainWorld("caddis", api);
+contextBridge.exposeInMainWorld("clay", api);

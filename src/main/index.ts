@@ -4,15 +4,17 @@ import {
   app,
   dialog,
   ipcMain,
+  nativeImage,
   protocol,
   session as electronSession,
   type WebContents,
 } from "electron";
 import { readFile, rename, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AgentLink } from "../core/agentLink";
-import { ARTIFACT_EXT } from "../core/artifact";
+import { ARTIFACT_EXT, ARTIFACT_OPEN_EXTENSIONS, clayArtifactPath, isArtifactPath } from "../shared/artifact";
 import { SessionManager } from "../core/manager";
 import type { Client } from "../core/session";
 import { FRAME_HEADERS, createFrameFiles } from "../core/static";
@@ -29,7 +31,13 @@ import { relayToHub } from "./hubRelay";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = app.getAppPath();
-const DATA = path.resolve(process.env.CADDIS_DATA_DIR ?? path.join(app.getPath("userData"), "data"));
+app.setName("Clay");
+// Reuse the existing profile so sessions and browser storage survive the rename.
+if (!existsSync(app.getPath("userData"))) {
+  const legacy = ["Caddis", "caddis"].map((name) => path.join(app.getPath("appData"), name)).find(existsSync);
+  if (legacy) app.setPath("userData", legacy);
+}
+const DATA = path.resolve(process.env.CLAY_DATA_DIR ?? path.join(app.getPath("userData"), "data"));
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -64,7 +72,7 @@ function linkAgents(url: string, name: string, token: string) {
       infos: () => manager.providerInfos(),
       onProviders: (cb) => manager.onProviders(cb),
       dataDir: DATA,
-      cwd: process.env.CADDIS_DEFAULT_CWD,
+      cwd: process.env.CLAY_DEFAULT_CWD,
     }).start(),
   };
 }
@@ -78,6 +86,10 @@ function rendererUrl(sessionId?: string) {
 /** Height of the host-drawn titlebar; keep in sync with `--tb` in the renderer's styles.css. */
 const TITLEBAR_H = 36;
 const MAC = process.platform === "darwin";
+const ICON_PATH = path.join(
+  ROOT,
+  process.env.VITE_DEV_SERVER_URL ? "src/renderer/public/icon.png" : "out/renderer/icon.png",
+);
 
 function createWindow(sessionId?: string) {
   const win = new BrowserWindow({
@@ -86,7 +98,8 @@ function createWindow(sessionId?: string) {
     minWidth: 640,
     minHeight: 480,
     backgroundColor: "#0e0f13",
-    title: "Caddis",
+    title: "Clay",
+    icon: ICON_PATH,
     autoHideMenuBar: true,
     // The renderer draws the titlebar; the OS keeps its window controls (traffic lights / overlay buttons).
     titleBarStyle: "hidden",
@@ -192,12 +205,13 @@ ipcMain.handle("ac:pickDir", async (e) => {
   return r.canceled ? undefined : r.filePaths[0];
 });
 
-// ---------------------------------------------------------------- File: new / open / save (.caddis artifacts)
+// ---------------------------------------------------------------- File: new / open / save (.clay artifacts)
 
 const FILE_COMMANDS: readonly FileCommand[] = ["new", "open", "save", "saveAs"];
 /** Handled in before-input-event so they work while the canvas (another process) has focus. */
 const SHORTCUTS: Record<string, FileCommand> = { n: "new", o: "open", s: "save", "shift+s": "saveAs" };
-const FILTERS = [{ name: "Caddis artifact", extensions: [ARTIFACT_EXT] }];
+const FILTERS = [{ name: "Clay artifact", extensions: [ARTIFACT_EXT] }];
+const OPEN_FILTERS = [{ name: "Clay artifact", extensions: ARTIFACT_OPEN_EXTENSIONS }];
 let lastDir: string | undefined;
 
 function fileCommand(cmd: FileCommand, win?: BrowserWindow | null) {
@@ -207,17 +221,17 @@ function fileCommand(cmd: FileCommand, win?: BrowserWindow | null) {
   if (win) return saveArtifact(win, cmd === "saveAs");
 }
 
-/** On a hub, File → Save downloads the open artifact as a `.caddis` file. */
+/** On a hub, File → Save downloads the open artifact as a `.clay` file. */
 async function saveHubArtifact(win: BrowserWindow, conn: HubConn) {
   const f = await conn.exportArtifact();
   if (!f) return void dialog.showMessageBox(win, { type: "info", message: "Open an artifact to save it." });
   const r = await dialog.showSaveDialog(win, {
-    title: "Save Caddis artifact",
+    title: "Save Clay artifact",
     defaultPath: path.join(lastDir ?? app.getPath("documents"), f.name),
     filters: FILTERS,
   });
   if (r.canceled || !r.filePath) return;
-  const file = r.filePath.endsWith(`.${ARTIFACT_EXT}`) ? r.filePath : `${r.filePath}.${ARTIFACT_EXT}`;
+  const file = clayArtifactPath(r.filePath);
   await writeFile(file, Buffer.from(f.data, "base64"));
   lastDir = path.dirname(file);
 }
@@ -232,15 +246,15 @@ async function saveArtifact(win: BrowserWindow, saveAs: boolean) {
       message: "Nothing to save yet",
       detail: "Start a session in this window first.",
     });
-  let file = saveAs ? undefined : s.artifactPath;
+  let file = saveAs || !s.artifactPath?.toLowerCase().endsWith(`.${ARTIFACT_EXT}`) ? undefined : s.artifactPath;
   if (!file) {
     const r = await dialog.showSaveDialog(win, {
-      title: "Save Caddis artifact",
+      title: "Save Clay artifact",
       defaultPath: path.join(lastDir ?? app.getPath("documents"), s.artifactName),
       filters: FILTERS,
     });
     if (r.canceled || !r.filePath) return;
-    file = r.filePath.endsWith(`.${ARTIFACT_EXT}`) ? r.filePath : `${r.filePath}.${ARTIFACT_EXT}`;
+    file = clayArtifactPath(r.filePath);
   }
   try {
     const { buffer } = await s.exportArtifact();
@@ -261,9 +275,9 @@ ${e?.message ?? e}`,
 async function openArtifact(win?: BrowserWindow | null, file?: string) {
   if (!file) {
     const opts = {
-      title: "Open Caddis artifact",
+      title: "Open Clay artifact",
       defaultPath: lastDir,
-      filters: FILTERS,
+      filters: OPEN_FILTERS,
       properties: ["openFile" as const],
     };
     const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts));
@@ -304,7 +318,7 @@ const ui = (cmd: UiCommand) => () => BrowserWindow.getFocusedWindow()?.webConten
 function buildMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      ...(MAC ? [{ role: "appMenu" as const }] : []),
+      ...(MAC ? [{ label: "Clay", role: "appMenu" as const }] : []),
       {
         label: "File",
         submenu: [
@@ -352,7 +366,7 @@ function buildMenu() {
   );
 }
 
-// macOS: double-clicked or dropped `.caddis` files.
+// macOS: double-clicked or dropped `.clay` and `.caddis` files.
 let pendingOpen: string | undefined;
 app.on("open-file", (e, file) => {
   e.preventDefault();
@@ -361,6 +375,8 @@ app.on("open-file", (e, file) => {
 });
 
 void app.whenReady().then(() => {
+  app.setAboutPanelOptions({ applicationName: "Clay", iconPath: ICON_PATH });
+  app.dock?.setIcon(nativeImage.createFromPath(ICON_PATH));
   protocol.handle("canvas", (req) => {
     const url = new URL(req.url);
     const f =
@@ -379,9 +395,9 @@ void app.whenReady().then(() => {
   buildMenu();
   void manager.discover();
   const arg = process.argv.find((a) => a.startsWith("--session="));
-  const artifact = pendingOpen ?? process.argv.slice(1).find((a) => a.endsWith(`.${ARTIFACT_EXT}`));
+  const artifact = pendingOpen ?? process.argv.slice(1).find(isArtifactPath);
   if (artifact) void openArtifact(undefined, path.resolve(artifact));
-  else createWindow(arg?.slice("--session=".length) || process.env.CADDIS_SESSION);
+  else createWindow(arg?.slice("--session=".length) || process.env.CLAY_SESSION);
   app.on("activate", () => BrowserWindow.getAllWindows().length === 0 && createWindow());
 });
 

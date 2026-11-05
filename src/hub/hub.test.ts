@@ -15,7 +15,7 @@ let url: string;
 const links: AgentLink[] = [];
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(os.tmpdir(), "caddis-hub-test-"));
+  dir = mkdtempSync(path.join(os.tmpdir(), "clay-hub-test-"));
   server = await startHubServer({
     dir: path.join(dir, "hub"),
     token: TOKEN,

@@ -127,7 +127,7 @@ export function fileOpen() {
   if (transport.file) return transport.file("open");
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = ".caddis";
+  input.accept = ".clay,.caddis";
   input.onchange = () => {
     const f = input.files?.[0];
     if (!f) return;
@@ -211,7 +211,7 @@ export function startController() {
     () => useUi.setState({ connected: true }),
     () => useUi.setState({ connected: false }),
   );
-  window.caddis?.onUi(uiCommand);
+  window.clay?.onUi(uiCommand);
   pollProcessStats();
   window.addEventListener(
     "keydown",
@@ -234,7 +234,7 @@ export function startController() {
 
 /** Electron: memory/CPU of the canvas process for the titlebar status. */
 function pollProcessStats() {
-  const b = window.caddis;
+  const b = window.clay;
   if (!b) return;
   setInterval(() => {
     if (useUi.getState().phase !== "session" || document.hidden) return;

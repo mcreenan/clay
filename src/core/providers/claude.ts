@@ -15,7 +15,7 @@ import type { AgentProvider, AgentRun, ProviderContext } from "./types";
 const PREAPPROVED = ["Read", "Glob", "Grep", "WebFetch", "WebSearch", "TodoWrite"];
 
 export function resolveClaudeExecutable(): string | undefined {
-  return process.env.CADDIS_CLAUDE_EXECUTABLE || findExecutable("claude");
+  return process.env.CLAY_CLAUDE_EXECUTABLE || findExecutable("claude");
 }
 
 function baseOptions(): Options {
@@ -24,7 +24,7 @@ function baseOptions(): Options {
     pathToClaudeCodeExecutable: exe,
     settingSources: ["user", "project", "local"],
     persistSession: true,
-    env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: "caddis/0.2" },
+    env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: "clay/0.2" },
   };
 }
 
@@ -61,7 +61,7 @@ export class ClaudeProvider implements AgentProvider {
   async discover(onUpdate?: () => void): Promise<ProviderInfo> {
     const info: ProviderInfo = { id: "claude", label: "Claude", enabled: false, models: [] };
     const exe = resolveClaudeExecutable();
-    if (!exe) return { ...info, note: "claude CLI not found on PATH (set CADDIS_CLAUDE_EXECUTABLE)" };
+    if (!exe) return { ...info, note: "claude CLI not found on PATH (set CLAY_CLAUDE_EXECUTABLE)" };
     // Ask the CLI itself which models and effort levels this login supports.
     const q = query({ prompt: never, options: { ...baseOptions(), cwd: os.homedir() } });
     // Not in the SDK's typings yet: reports the model and effort the next request would use.
@@ -147,9 +147,9 @@ export class ClaudeProvider implements AgentProvider {
         allowedTools: [...PREAPPROVED, ...canvasTools],
         // Edits are auto-accepted in the working directory. Bash runs in Claude Code's sandbox
         // (writes confined to cwd, network allowed) and is auto-approved there.
-        permissionMode: (process.env.CADDIS_PERMISSION_MODE as Options["permissionMode"]) ?? "acceptEdits",
+        permissionMode: (process.env.CLAY_PERMISSION_MODE as Options["permissionMode"]) ?? "acceptEdits",
         sandbox: {
-          enabled: process.env.CADDIS_SANDBOX !== "0",
+          enabled: process.env.CLAY_SANDBOX !== "0",
           autoAllowBashIfSandboxed: true,
           allowUnsandboxedCommands: false,
           network: { allowedDomains: ["*"], allowLocalBinding: true },

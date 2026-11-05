@@ -72,7 +72,7 @@ export const gitAuthor = (name: string): GitAuthor => ({
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, ".")
       .replace(/^\.|\.$/g, "") || "someone"
-  }@caddis.local`,
+  }@clay.local`,
 });
 
 export class ProjectStore {

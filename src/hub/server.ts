@@ -17,7 +17,7 @@ export interface HubServerOptions extends HubOptions {
 
 /**
  * HTTP + WebSocket front for a Hub: the browser UI, `/ws` for UI clients
- * (Caddis protocol) and `/agent` for agent hosts (src/core/agentLink.ts).
+ * (Clay protocol) and `/agent` for agent hosts (src/core/agentLink.ts).
  */
 export async function startHubServer(o: HubServerOptions) {
   const hub = new Hub(o);

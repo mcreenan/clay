@@ -73,7 +73,7 @@ export function relayToHub(url: string, client: Client, onJoin: (name: string, t
       ws?.close();
     },
     session: undefined,
-    /** The open artifact as a `.caddis` file, for File → Save. */
+    /** The open artifact as a `.clay` file, for File → Save. */
     exportArtifact(): Promise<{ name: string; data: string } | undefined> {
       exporting?.(undefined);
       return new Promise((resolve) => {

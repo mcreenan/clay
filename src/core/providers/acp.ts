@@ -13,7 +13,7 @@ import type { AgentProvider, AgentRun, ProviderContext, ProviderEvent } from "./
 /**
  * Any agent that speaks the Agent Client Protocol (https://agentclientprotocol.com)
  * over stdio. Known agents are offered when their CLI is installed; more can be
- * declared in `acp-agents.json` in the data directory or `CADDIS_ACP_AGENTS`.
+ * declared in `acp-agents.json` in the data directory or `CLAY_ACP_AGENTS`.
  *
  * The canvas tools reach the agent as an MCP server (HTTP when the agent
  * supports it, else a stdio bridge). ACP has no system prompt, so the canvas
@@ -45,13 +45,13 @@ export const KNOWN_ACP_AGENTS: AcpAgentDef[] = [
   { id: "hermes-agent", label: "Hermes Agent", command: "hermes", args: ["acp"] },
 ];
 
-/** Agents declared by the user: a JSON array (or `{ "agents": [...] }`) inline in `CADDIS_ACP_AGENTS`, or in a file. */
+/** Agents declared by the user: a JSON array (or `{ "agents": [...] }`) inline in `CLAY_ACP_AGENTS`, or in a file. */
 export function loadCustomAcpAgents(dataDir: string): { agents: AcpAgentDef[]; errors: string[] } {
   const agents: AcpAgentDef[] = [];
   const errors: string[] = [];
   const sources: [string, string][] = [];
-  const env = process.env.CADDIS_ACP_AGENTS?.trim();
-  if (env) sources.push(env.startsWith("[") || env.startsWith("{") ? ["CADDIS_ACP_AGENTS", env] : [env, ""]);
+  const env = process.env.CLAY_ACP_AGENTS?.trim();
+  if (env) sources.push(env.startsWith("[") || env.startsWith("{") ? ["CLAY_ACP_AGENTS", env] : [env, ""]);
   const file = path.join(dataDir, "acp-agents.json");
   if (existsSync(file)) sources.push([file, ""]);
   for (const [where, inline] of sources) {
@@ -123,7 +123,7 @@ class AgentProcess {
       this.conn.initialize({
         protocolVersion: acp.PROTOCOL_VERSION,
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-        clientInfo: { name: "caddis", title: "Caddis", version: "0.2" },
+        clientInfo: { name: "clay", title: "Clay", version: "0.2" },
       }),
     );
   }
@@ -168,7 +168,7 @@ export class AcpProvider implements AgentProvider {
     const info: ProviderInfo = { id: this.id, label: def.label, enabled: false, models: [] };
     const exe = findExecutable(def.command);
     if (!exe) return { ...info, note: `${def.command} not found on PATH` };
-    const dir = mkdtempSync(path.join(os.tmpdir(), "caddis-probe-"));
+    const dir = mkdtempSync(path.join(os.tmpdir(), "clay-probe-"));
     const agent = new AgentProcess(exe, def, dir, {
       requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
       sessionUpdate: () => {},
@@ -475,7 +475,7 @@ class AcpRun implements AgentRun {
   /**
    * No approval UI yet, so permission requests follow a fixed policy, like Claude's defaults:
    * reads, searches, fetches and the canvas tools are allowed, and so are edits inside the working
-   * directory. Commands and anything else are refused unless `CADDIS_ACP_PERMISSIONS=all`.
+   * directory. Commands and anything else are refused unless `CLAY_ACP_PERMISSIONS=all`.
    */
   private async onPermission(r: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse> {
     const allow = r.options.find((o) => o.kind === "allow_once") ?? r.options.find((o) => o.kind === "allow_always");
@@ -487,7 +487,7 @@ class AcpRun implements AgentRun {
       this.emit({
         type: "notice",
         level: "info",
-        text: `Refused ${r.toolCall.title ?? "a tool call"}: ${this.def.label} may only read, edit files in the working directory and use the canvas tools. Set CADDIS_ACP_PERMISSIONS=all to allow everything.`,
+        text: `Refused ${r.toolCall.title ?? "a tool call"}: ${this.def.label} may only read, edit files in the working directory and use the canvas tools. Set CLAY_ACP_PERMISSIONS=all to allow everything.`,
       });
     }
     return reject
@@ -496,7 +496,7 @@ class AcpRun implements AgentRun {
   }
 
   private permitted(call: acp.ToolCallUpdate): boolean {
-    if (process.env.CADDIS_ACP_PERMISSIONS === "all") return true;
+    if (process.env.CLAY_ACP_PERMISSIONS === "all") return true;
     if (toolName(call, this.ctx.tools)?.startsWith(mcpToolName(""))) return true;
     switch (call.kind) {
       case "read":

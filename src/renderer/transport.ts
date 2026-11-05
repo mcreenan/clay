@@ -22,11 +22,11 @@ export interface HubLogin {
   token: string;
 }
 
-const HUB_KEY = "caddis.hub";
+const HUB_KEY = "clay.hub";
 
 export function savedHub(): HubLogin | undefined {
   try {
-    const v = JSON.parse(localStorage.getItem(HUB_KEY) ?? "null");
+    const v = JSON.parse(localStorage.getItem(HUB_KEY) ?? localStorage.getItem("caddis.hub") ?? "null");
     return v && typeof v.name === "string" && typeof v.token === "string" ? v : undefined;
   } catch {
     return undefined;
@@ -36,10 +36,11 @@ export function savedHub(): HubLogin | undefined {
 export function saveHub(login: HubLogin | undefined) {
   if (login) localStorage.setItem(HUB_KEY, JSON.stringify(login));
   else localStorage.removeItem(HUB_KEY);
+  localStorage.removeItem("caddis.hub");
 }
 
 function electronTransport(): Transport {
-  const b = window.caddis!;
+  const b = window.clay!;
   let opened = () => {};
   return {
     platform: "electron",
@@ -85,4 +86,4 @@ function webTransport(): Transport {
   };
 }
 
-export const transport: Transport = window.caddis ? electronTransport() : webTransport();
+export const transport: Transport = window.clay ? electronTransport() : webTransport();

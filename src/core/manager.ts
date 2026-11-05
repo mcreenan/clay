@@ -28,7 +28,7 @@ export class SessionManager {
   constructor(
     dataDir: string,
     /** Empty: each new session gets its own temporary directory. */
-    readonly defaultCwd = process.env.CADDIS_DEFAULT_CWD ?? "",
+    readonly defaultCwd = process.env.CLAY_DEFAULT_CWD ?? "",
     readonly platform: "web" | "electron" = "web",
   ) {
     this.providers = { claude: new ClaudeProvider(), codex: new CodexProvider(this.mcp) };
@@ -36,7 +36,7 @@ export class SessionManager {
     this.labels.set("codex", "Codex");
     // Known ACP agents are offered only when installed; declared ones always (their errors are useful).
     const custom = loadCustomAcpAgents(dataDir);
-    for (const err of custom.errors) console.warn(`[caddis] ACP agents: ${err}`);
+    for (const err of custom.errors) console.warn(`[clay] ACP agents: ${err}`);
     const known = KNOWN_ACP_AGENTS.filter((a) => findExecutable(a.command));
     for (const def of [...known.filter((k) => !custom.agents.some((c) => c.id === k.id)), ...custom.agents]) {
       const p = new AcpProvider(def, this.mcp);
@@ -110,11 +110,11 @@ export class SessionManager {
   }
 
   private tempCwd() {
-    return mkdtempSync(path.join(os.tmpdir(), "caddis-"));
+    return mkdtempSync(path.join(os.tmpdir(), "clay-"));
   }
 
   /**
-   * Open a `.caddis` artifact as a new session. It keeps its original working
+   * Open a `.clay` artifact as a new session. It keeps its original working
    * directory when that exists on this machine, else uses the default.
    */
   async importArtifact(buf: Buffer, source?: ArtifactSource): Promise<Session> {
