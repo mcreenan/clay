@@ -6,6 +6,7 @@ directories:
   output: dist
   buildResources: build
 files:
+  - LICENSE
   - package.json
   - out/main/**
   - out/preload/**

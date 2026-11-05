@@ -4,7 +4,7 @@
   "private": true,
   "description": "A malleable canvas built live by a coding agent",
   "homepage": "https://github.com/mcreenan/caddis",
-  "license": "ISC",
+  "license": "MIT",
   "author": "Matt Creenan <mattcreenan@gmail.com>",
   "repository": {
     "type": "git",
