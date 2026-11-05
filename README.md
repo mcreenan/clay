@@ -14,9 +14,11 @@ In Clay, a coding agent builds straight into the window you're looking at. Ask f
 - **Works in a real folder.** The agent can read and edit files and run commands in a working directory you choose, or a fresh temporary one.
 - **Work together on a hub (prototype).** An optional server keeps projects of artifacts that several people can work in at once, with each project's history in git. Everyone's agents still run on their own machines and show up as "Matt's agent".
 
-![The opening screen, asking "What should we make?" above a prompt asking for a 3D solar system, with model, effort and working-directory pickers](docs/images/start-screen.png)
+![The Clay start screen with a prompt for an interactive black hole, plus agent, model, effort, and working-directory controls](docs/images/start-screen.png)
 
-![The 3D solar system Claude built from that prompt, with the session history on the right and the prompt along the bottom](docs/images/canvas-session.png)
+![A sample black hole visualization with a glowing accretion disk, viewing-angle and playback controls, and the prompt in the history panel](docs/images/canvas-session.png)
+
+![A sample HTML sales report with weekly revenue, sales by product, and a summary, beside the example prompt](docs/images/html-report.png)
 
 ## Requirements
 
