@@ -46,6 +46,7 @@ export interface UiState {
   title?: SessionTitle;
   /** The titlebar's title is being edited. */
   renaming: boolean;
+  hubSetupOpen: boolean;
   /** Short-lived notice ("Saved x.clay"). */
   toast?: string;
 
@@ -73,6 +74,7 @@ export const useUi = create<UiState>(() => ({
   defaultCwd: "",
   phase: "connecting",
   renaming: false,
+  hubSetupOpen: false,
   status: "idle",
   history: [],
   canvas: emptyCanvas(),

@@ -12,21 +12,21 @@ const build = path.join(root, "build");
 const icons = path.join(build, "icons");
 const web = path.join(root, "src/renderer/public");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "clay-icons-"));
-const large = readFileSync(path.join(build, "icon.svg"), "utf8");
-const small = readFileSync(path.join(build, "icon-small.svg"), "utf8");
+const artwork = readFileSync(path.join(build, "icon.svg"), "utf8");
 const sizes = [16, 24, 32, 48, 64, 96, 128, 256, 512, 1024];
 
-function render(source, size, destination) {
-  const svg = source.replace(/width="\d+" height="\d+"/, `width="${size}" height="${size}"`);
+const svgAtSize = (size) => artwork.replace(/width="\d+" height="\d+"/, `width="${size}" height="${size}"`);
+
+function render(size, destination) {
   const input = path.join(tmp, "source.svg");
-  writeFileSync(input, svg);
+  writeFileSync(input, svgAtSize(size));
   execFileSync("sips", ["-s", "format", "png", input, "--out", destination], { stdio: "pipe" });
 }
 
 try {
   mkdirSync(icons, { recursive: true });
   mkdirSync(web, { recursive: true });
-  for (const size of sizes) render(size <= 24 ? small : large, size, path.join(icons, `${size}x${size}.png`));
+  for (const size of sizes) render(size, path.join(icons, `${size}x${size}.png`));
   copyFileSync(path.join(icons, "512x512.png"), path.join(build, "icon.png"));
 
   const iconset = path.join(tmp, "Clay.iconset");
@@ -34,7 +34,7 @@ try {
   for (const size of [16, 32, 128, 256, 512]) {
     for (const scale of [1, 2]) {
       const name = `icon_${size}x${size}${scale === 2 ? "@2x" : ""}.png`;
-      render(size === 16 ? small : large, size * scale, path.join(iconset, name));
+      render(size * scale, path.join(iconset, name));
     }
   }
   execFileSync("iconutil", ["-c", "icns", iconset, "-o", path.join(build, "icon.icns")]);
@@ -58,12 +58,12 @@ try {
   writeFileSync(path.join(build, "icon.ico"), Buffer.concat([header, ...images]));
 
   copyFileSync(path.join(build, "icon.svg"), path.join(web, "icon.svg"));
-  copyFileSync(path.join(build, "icon-small.svg"), path.join(web, "favicon.svg"));
+  writeFileSync(path.join(web, "favicon.svg"), svgAtSize(16));
   copyFileSync(path.join(build, "icon.ico"), path.join(web, "favicon.ico"));
   for (const size of [16, 32])
     copyFileSync(path.join(icons, `${size}x${size}.png`), path.join(web, `favicon-${size}.png`));
   copyFileSync(path.join(icons, "512x512.png"), path.join(web, "icon.png"));
-  render(large, 180, path.join(web, "apple-touch-icon.png"));
+  render(180, path.join(web, "apple-touch-icon.png"));
   console.log("Built Pebble icons for desktop, installers, and the browser.");
 } finally {
   rmSync(tmp, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startHubServer } from "./server";
+import { hubUrls } from "./urls";
 
 /**
  * `npm run hub`: the optional Clay hub. Projects, multiplayer artifacts and
@@ -37,7 +38,8 @@ const server = await startHubServer({
   root: ROOT,
   ui: path.join(ROOT, "out/renderer"),
 });
-console.log(`clay hub on http://${HOST}:${server.port}  (data: ${DIR})`);
+console.log(`clay hub (data: ${DIR})`);
+for (const url of hubUrls(HOST, server.port)) console.log(`  ${url}`);
 console.log(`access token: ${t}`);
 
 for (const sig of ["SIGINT", "SIGTERM"] as const)

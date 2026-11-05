@@ -329,6 +329,8 @@ function buildMenu() {
           { label: "Save As…", accelerator: "CmdOrCtrl+Shift+S", click: () => fileCommand("saveAs") },
           { label: "Rename…", click: ui("rename") },
           { type: "separator" },
+          { label: "Run a hub server…", click: ui("hubSetup") },
+          { type: "separator" },
           { role: "close" },
           ...(MAC ? [] : [{ role: "quit" as const }]),
         ],

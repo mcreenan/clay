@@ -469,6 +469,7 @@ export type ToFrameMsg =
 
 /** Titlebar/menu actions. Electron main sends them to the focused window for native menu items and shortcuts. */
 export type UiCommand =
+  | "hubSetup"
   | "overlay"
   | "history"
   | "resetOverlay"

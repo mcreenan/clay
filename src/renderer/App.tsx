@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ChromeLayer } from "./components/Chrome";
 import { JoinCard, ProjectList, ProjectView } from "./components/Hub";
+import { HubSetup } from "./components/HubSetup";
 import { StartCard } from "./components/StartCard";
 import { TitleBar, Toast } from "./components/TitleBar";
 import { attachStage } from "./controller";
@@ -13,7 +14,7 @@ function Stage() {
 }
 
 export function App() {
-  const { phase, connected, overlayHidden, sessionId } = useUi();
+  const { phase, connected, overlayHidden, sessionId, hubSetupOpen } = useUi();
   return (
     <>
       <TitleBar />
@@ -26,6 +27,7 @@ export function App() {
       {phase === "connecting" && <div className="connecting muted">Connecting…</div>}
       {phase === "session" && <ChromeLayer hidden={overlayHidden} />}
       <Toast />
+      {hubSetupOpen && <HubSetup />}
       {!connected && phase !== "connecting" && <div className="offline">reconnecting…</div>}
     </>
   );

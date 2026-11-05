@@ -23,6 +23,7 @@ export const setHistoryMode = (mode: "full" | "mini") =>
   send({ t: "chrome.set", component: "history", props: { mode } });
 
 export function uiCommand(cmd: UiCommand) {
+  if (cmd === "hubSetup") return useUi.setState({ hubSetupOpen: true });
   if (cmd === "overlay") return toggleOverlay();
   if (useUi.getState().phase !== "session") return;
   if (cmd === "resetOverlay") {

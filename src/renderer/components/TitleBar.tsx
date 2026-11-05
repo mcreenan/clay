@@ -62,6 +62,8 @@ function useMenus(): Menu[] {
         { label: "Save", key: `${mod}S`, run: () => fileSave(false), disabled: !inSession },
         { label: "Save as…", key: `${mod}⇧S`, run: () => fileSave(true), disabled: !inSession },
         { label: "Rename…", run: cmd("rename"), disabled: !inSession, testid: "rename" },
+        "-",
+        { label: "Run a hub server…", run: cmd("hubSetup"), testid: "menu-hub-setup" },
       ],
     },
     {
