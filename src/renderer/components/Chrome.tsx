@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { CHROME_MARGIN, CHROME_Z, effectiveProps, layoutChrome, safeCssProps, type Rect } from "../../shared/chrome";
 import type { ChromeApplyResult, ChromeComponent, Effort, PromptTarget } from "../../shared/protocol";
-import { TITLEBAR_H, send, setHistoryMode } from "../controller";
+import { TITLEBAR_H, historyMini, send, uiCommand } from "../controller";
 import { useMyAgents, useSessionProvider, useUi } from "../store";
-import { HistoryList, Transcript, statusText } from "./History";
+import { HistoryList, Transcript, shortTool, toolSummary } from "./History";
 import { Icon } from "./ToolIcon";
 
 /**
@@ -82,21 +82,69 @@ function useTargets() {
   return { options, current, cycle };
 }
 
+function AgentActivity() {
+  const status = useUi((s) => s.status);
+  const detail = useUi((s) => s.statusDetail);
+  const history = useUi((s) => s.history);
+  const cwd = useUi((s) => s.config?.cwd);
+  const mini = useUi(historyMini);
+  if (status === "idle") return null;
+
+  let activity = detail ?? "";
+  if (status !== "error") {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const item = history[i];
+      if (item.kind === "user" || item.kind === "turn") break;
+      if (item.kind === "tool") {
+        activity = [shortTool(item.name), toolSummary(item.input, cwd)].filter(Boolean).join(" · ");
+        break;
+      }
+      if ((item.kind === "assistant" || item.kind === "thinking") && item.text.trim()) {
+        activity = item.text;
+        break;
+      }
+    }
+  }
+  activity = activity.replace(/\s+/g, " ").trim();
+  const label = status === "error" ? "Error" : status === "tool" ? "Working…" : "Thinking…";
+  return (
+    <div className={`agent-activity st-${status}`} data-testid="agent-activity">
+      <Icon name="brain" className="ic activity-brain" />
+      <span className="activity-status" role="status">
+        {label}
+      </span>
+      <span className="activity-detail" title={activity}>
+        {activity}
+      </span>
+      <button
+        type="button"
+        className="activity-history"
+        title={mini ? "Show history" : "Hide history"}
+        aria-label={mini ? "Show history" : "Hide history"}
+        aria-expanded={!mini}
+        data-testid="activity-history-toggle"
+        onClick={() => uiCommand("history")}
+      >
+        <Icon name="panel" />
+      </button>
+    </div>
+  );
+}
+
 export function PromptBar() {
   const applied = useApplied("prompt");
   const status = useUi((s) => s.status);
-  const statusDetail = useUi((s) => s.statusDetail);
   const meta = usePromptMeta();
   const targets = useTargets();
   const to = targets?.current.to;
   const { w, h } = useViewport();
-  const box = useRef<HTMLFormElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const [height, setHeight] = useState<number>();
   const [text, setText] = useState("");
   useLayoutEffect(() => {
     const el = box.current!;
-    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight + 12));
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -124,98 +172,99 @@ export function PromptBar() {
         ["⇧⏎", "newline"],
       ];
   return (
-    <form
-      ref={box}
-      className={`chrome-box chrome-prompt bezel st-${status}`}
-      data-testid="prompt"
-      style={chromeStyle(applied, rect)}
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
+    <div
+      className="chrome-prompt"
+      // Leave room above top-anchored prompts for both rows, even while hidden.
+      style={chromeStyle(applied, { ...rect, y: Math.max(rect.y, 84) })}
     >
-      <div className="well">
-        <textarea
-          ref={input}
-          rows={1}
-          value={text}
-          placeholder={
-            targets
-              ? to
-                ? `Ask ${targets.current.label.split(" · ")[0]}…`
-                : "Message everyone (no agent)…"
-              : busy
-                ? "Queue a follow-up…"
-                : "Ask for a change…"
-          }
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              submit();
-            } else if (e.key === "Escape" && busy) {
-              e.preventDefault();
-              send({ t: "interrupt" });
-            }
-          }}
-        />
-        {busy && (
-          <button type="button" className="key stop" title="Stop (Esc)" onClick={() => send({ t: "interrupt" })}>
-            <svg className="ic fill" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="7" y="7" width="10" height="10" rx="2" />
-            </svg>
-          </button>
-        )}
-        <button
-          type="submit"
-          className="key send"
-          title={busy ? "Queue (Enter)" : "Send (Enter)"}
-          disabled={!text.trim()}
-        >
-          <Icon name={busy ? "queue" : "up"} />
-        </button>
-      </div>
-      <div className="pfoot">
-        {targets && (
-          <button
-            type="button"
-            className={`ptarget${to ? "" : " room"}`}
-            title={
-              targets.options.length > 1
-                ? "Click to choose who this goes to"
-                : "Connect your agent to the hub to ask it for changes"
-            }
-            data-testid="prompt-target"
-            onClick={targets.cycle}
-          >
-            to {targets.current.label}
-          </button>
-        )}
-        {meta.model && <span className="model">{meta.model}</span>}
-        {meta.effort && (
-          <span className="eff" title={`Effort: ${meta.effort}`}>
-            <span className="bars">
-              {Array.from({ length: meta.levels }, (_, i) => (
-                <i key={i} className={i <= meta.level ? "on" : ""} />
-              ))}
+      <AgentActivity />
+      <form
+        className={`chrome-box bezel prompt-bezel st-${status}`}
+        data-testid="prompt"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <div className="pfoot">
+          {targets && (
+            <button
+              type="button"
+              className={`ptarget${to ? "" : " room"}`}
+              title={
+                targets.options.length > 1
+                  ? "Click to choose who this goes to"
+                  : "Connect your agent to the hub to ask it for changes"
+              }
+              data-testid="prompt-target"
+              onClick={targets.cycle}
+            >
+              to {targets.current.label}
+            </button>
+          )}
+          {meta.model && <span className="model">{meta.model}</span>}
+          {meta.effort && (
+            <span className="eff" title={`Effort: ${meta.effort}`}>
+              <span className="bars">
+                {Array.from({ length: meta.levels }, (_, i) => (
+                  <i key={i} className={i <= meta.level ? "on" : ""} />
+                ))}
+              </span>
+              {meta.effort}
             </span>
-            {meta.effort}
+          )}
+          <span className="hints">
+            {hints.map(([k, l]) => (
+              <span key={l}>
+                <kbd>{k}</kbd>
+                {l}
+              </span>
+            ))}
           </span>
-        )}
-        {status === "tool" && <span className="busy">running {statusDetail ?? "a tool"}</span>}
-        {status === "error" && (
-          <span className="perr">{statusDetail ? `turn failed · ${statusDetail}` : "turn failed"}</span>
-        )}
-        <span className="hints">
-          {hints.map(([k, l]) => (
-            <span key={l}>
-              <kbd>{k}</kbd>
-              {l}
-            </span>
-          ))}
-        </span>
-      </div>
-    </form>
+        </div>
+        <div ref={box} className="well">
+          <textarea
+            ref={input}
+            rows={1}
+            value={text}
+            placeholder={
+              targets
+                ? to
+                  ? `Ask ${targets.current.label.split(" · ")[0]}…`
+                  : "Message everyone (no agent)…"
+                : busy
+                  ? "Queue a follow-up…"
+                  : "Ask for a change…"
+            }
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Escape" && busy) {
+                e.preventDefault();
+                send({ t: "interrupt" });
+              }
+            }}
+          />
+          {busy && (
+            <button type="button" className="key stop" title="Stop (Esc)" onClick={() => send({ t: "interrupt" })}>
+              <svg className="ic fill" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="7" y="7" width="10" height="10" rx="2" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="submit"
+            className="key send"
+            title={busy ? "Queue (Enter)" : "Send (Enter)"}
+            disabled={!text.trim()}
+          >
+            <Icon name={busy ? "queue" : "up"} />
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -235,43 +284,14 @@ function usePromptMeta() {
   };
 }
 
-/** Position of the 40px mini button at the history panel's anchor. */
-function miniRect(full: Rect, anchor: string): Rect {
-  const s = 40;
-  const right = anchor.endsWith("right");
-  const bottom = anchor.startsWith("bottom");
-  const centerX = !right && !anchor.endsWith("left");
-  return {
-    x: right ? full.x + full.width - s : centerX ? full.x + (full.width - s) / 2 : full.x,
-    y: bottom ? full.y + full.height - s : full.y,
-    width: s,
-    height: s,
-  };
-}
-
 export function HistoryPanel() {
   const applied = useApplied("history");
-  const { history, status, statusDetail, stats } = useUi();
+  const { history, status } = useUi();
   const [transcript, setTranscript] = useState<string>();
   const closeTranscript = useCallback(() => setTranscript(undefined), []);
   const { w, h } = useViewport();
   const rect = layoutChrome("history", applied, w, h);
-  if (applied.mode === "mini") {
-    const r = miniRect(rect, applied.anchor);
-    const warn = stats?.warnings.length ?? 0;
-    return (
-      <button
-        className={`chrome-mini st-${status}`}
-        data-testid="history-mini"
-        style={{ ...chromeStyle(applied), left: r.x, top: r.y }}
-        title={`${statusText(status, statusDetail)}${warn ? ` · ${warn} watchdog warning(s)` : ""} — click to show history`}
-        onClick={() => setHistoryMode("full")}
-      >
-        <span className="dot" />
-        {warn > 0 && <span className="mini-badge">{warn}</span>}
-      </button>
-    );
-  }
+  if (applied.mode === "mini") return null;
   return (
     <section
       className={`chrome-box chrome-history st-${status}`}

@@ -20,6 +20,9 @@ const P: Record<string, string> = {
   scroll: "M8 3h11a2 2 0 0 1 2 2v1h-4M17 6v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1h10M8 3a2 2 0 0 0-2 2v13M10 9h4M10 13h4",
   up: "M12 19V5M5 12l7-7 7 7",
   queue: "M4 7h10M4 12h10M4 17h6M17 14v6M14 17h6",
+  brain:
+    "M12 5a3 3 0 0 0-5.9-.7A4 4 0 0 0 4 11.5a4 4 0 0 0 2 7.3A3 3 0 0 0 12 19V5a3 3 0 0 1 5.9-.7 4 4 0 0 1 2.1 7.2 4 4 0 0 1-2 7.3 3 3 0 0 1-6 .2M8 8a3 3 0 0 1-2-3M8 13a3 3 0 0 0-4-1.5M8 17a3 3 0 0 1 4-2M16 8a3 3 0 0 0 2-3M16 13a3 3 0 0 1 4-1.5M16 17a3 3 0 0 0-4-2",
+  panel: "M3 4h18v16H3zM15 4v16M18 8h.01M18 12h.01M18 16h.01",
 };
 
 const BY_TOOL: Record<string, keyof typeof P> = {

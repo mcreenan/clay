@@ -395,10 +395,3 @@ export function Transcript({
     </div>
   );
 }
-
-export function statusText(status: AgentStatus, detail?: string) {
-  if (status === "thinking") return "thinking…";
-  if (status === "tool") return `running ${detail ?? "a tool"}…`;
-  if (status === "error") return detail ? `error: ${detail}` : "error";
-  return "ready";
-}

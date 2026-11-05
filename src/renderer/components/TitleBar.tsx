@@ -18,7 +18,6 @@ import {
 } from "../controller";
 import { useSessionProvider, useUi } from "../store";
 import { transport } from "../transport";
-import { statusText } from "./History";
 import { Avatar, ago } from "./Hub";
 
 /**
@@ -304,8 +303,6 @@ function HubControls() {
 
 function SessionControls() {
   const undo = useUi((s) => s.undo);
-  const hidden = useUi((s) => s.overlayHidden);
-  const mini = useUi(historyMini);
   return (
     <div className="tb-group">
       <button
@@ -329,6 +326,15 @@ function SessionControls() {
         <Icon d="M11.5 4.5l3 3-3 3M14.5 7.5h-7a4 4 0 0 0 0 8H10" />
       </button>
       <span className="tb-sep" />
+    </div>
+  );
+}
+
+function OverlayControls() {
+  const hidden = useUi((s) => s.overlayHidden);
+  const mini = useUi(historyMini);
+  return (
+    <div className="tb-group">
       <button
         className={`tb-btn${hidden ? " on" : ""}`}
         title={`${hidden ? "Show" : "Hide"} the prompt and history (${mod}\\)`}
@@ -431,24 +437,19 @@ function level(v: number, ok: number, bad: number, higherIsBetter = false) {
   return v >= bad ? "bad" : v >= ok ? "ok" : "";
 }
 
-/** Live readout for the current canvas: agent status, fps (3D), files, data, memory, CPU, watchdog warnings. */
+/** Live readout for the current canvas: fps (3D), files, data, memory, CPU, watchdog warnings. */
 function Status() {
-  const { canvas, data, stats, proc, status, statusDetail } = useUi();
+  const { canvas, data, stats, proc } = useUi();
   const files = Object.values(canvas.resources).sort((a, b) => a.name.localeCompare(b.name));
   const total = files.reduce((n, r) => n + r.size, 0);
   const dataBytes = useMemo(() => new TextEncoder().encode(JSON.stringify(data)).length, [data]);
   const dataKeys = Object.keys(data).length;
   const memMB = proc?.memoryMB ?? stats?.heapMB;
   const warn = stats?.warnings ?? [];
-  const busy = status === "thinking" || status === "tool";
   const fps = useSamples(stats?.fps, stats?.ts);
   const cpu = useSamples(proc?.cpu, proc);
   return (
     <div className="tb-status" data-testid="status">
-      <span className={`tb-stat st-${status}`} title={`Agent: ${statusText(status, statusDetail)}`}>
-        <span className="dot" />
-        {(busy || status === "error") && <span className="tb-agent">{statusText(status, statusDetail)}</span>}
-      </span>
       {canvas.mode === "3d" && stats && (
         <span
           className={`tb-stat ${level(stats.fps, 50, 30, true)}`}
@@ -604,6 +605,7 @@ export function TitleBar() {
       <Title />
       {inSession && onHub && <HubControls />}
       {inSession && <Status />}
+      {inSession && <OverlayControls />}
     </header>
   );
 }

@@ -343,7 +343,7 @@ async function main() {
   );
   const font = await page.locator('[data-testid="prompt"] textarea').evaluate((el) => getComputedStyle(el).fontFamily);
   check("prompt uses a monospace font", /mono|courier|consolas/i.test(font), font);
-  check("history is mini", (await page.locator('[data-testid="history-mini"]').count()) === 1);
+  check("history is hidden", (await page.locator('[data-testid="history"]').count()) === 0);
   await shot("6-chrome");
 
   // ---------------------------------------------------------------- 7. titlebar: status, overlay toggle, reset + undo
@@ -387,11 +387,11 @@ async function main() {
     session().chrome.history?.mode === "full" && (await page.locator('[data-testid="history"]').isVisible()),
   );
   await tb.locator('[data-testid="history-toggle"]').click();
-  await page.waitForSelector('[data-testid="history-mini"]', { timeout: 5000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="history"]', { state: "hidden", timeout: 5000 }).catch(() => {});
   for (let i = 0; i < 25 && session().chrome.history?.mode !== "mini"; i++) await sleep(200);
   check(
     "titlebar minimises the history again",
-    session().chrome.history?.mode === "mini" && (await page.locator('[data-testid="history-mini"]').isVisible()),
+    session().chrome.history?.mode === "mini" && (await page.locator('[data-testid="history"]').count()) === 0,
   );
 
   // ---------------------------------------------------------------- 8. persistence across restart
