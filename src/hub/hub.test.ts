@@ -268,3 +268,69 @@ test("a slow turn is one commit by the agent, however long it takes", async () =
   expect(revs.map((r) => `${r.author}: ${r.message}`)).toEqual(["Sam's agent: Take your time", "Sam: Create artifact"]);
   sam.close();
 });
+
+test("hub command discovery and attachment bytes reach only the selected owner's agent", async () => {
+  const owner = await ui();
+  const stranger = await ui();
+  owner.send({ t: "hub.join", token: TOKEN, name: "InputOwner" });
+  stranger.send({ t: "hub.join", token: TOKEN, name: "InputOther" });
+  await owner.next("hub.joined");
+  await stranger.next("hub.joined");
+  owner.send({ t: "project.create", name: "Input attachments" });
+  const project = (await owner.next("project", (m) => m.project.name === "Input attachments")).project;
+  owner.send({ t: "artifact.create", projectId: project.id });
+  const { artifactId } = await owner.next("artifact.created");
+  for (const client of [owner, stranger]) {
+    client.send({ t: "hello", v: PROTOCOL_VERSION, sessionId: artifactId });
+    await client.next("session.snapshot");
+  }
+  const command = { name: "review", invocation: "/review", description: "Review" };
+  const capabilities = { commands: [command], images: true, files: true };
+  let discoveredCwd: string | undefined;
+  let runCwd: string | undefined;
+  let received: import("../core/providers/types").TurnMeta | undefined;
+  const fake = fakeProvider(() => "", []);
+  fake.provider.input = async (cwd) => {
+    discoveredCwd = cwd;
+    return capabilities;
+  };
+  fake.provider.start = (ctx) => {
+    runCwd = ctx.config.cwd;
+    return {
+      send(_text, meta) {
+        received = meta;
+        ctx.emit({ type: "input-capabilities", capabilities });
+        ctx.emit({ type: "turn-end", ok: true });
+      },
+      interrupt: async () => {},
+      close() {},
+    };
+  };
+  const link = await agent("InputOwner", fake);
+  const to = { agent: link.hostId!, provider: "claude" };
+  owner.send({ t: "input.discover", requestId: "same-id", provider: "claude", to });
+  const info = await owner.next("input.info");
+  expect(info.capabilities).toEqual(capabilities);
+  stranger.send({ t: "input.discover", requestId: "same-id", provider: "claude", to });
+  expect((await stranger.next("input.info")).error).toMatch(/Only InputOwner/);
+
+  const attachments = [
+    { name: "notes.txt", mime: "text/plain", base64: Buffer.from("remote bytes").toString("base64") },
+  ];
+  owner.send({ t: "prompt", text: "/review", attachments, command, to });
+  const message = await owner.next("history.append", (m) => m.item.kind === "user");
+  expect(message.item).toMatchObject({ attachments, command });
+  const update = await owner.next("input.update");
+  expect(update).toMatchObject({ agent: link.hostId, provider: "claude", capabilities });
+  await owner.next("history.append", (m) => m.item.kind === "turn");
+  expect(received).toMatchObject({ attachments, command });
+  expect(runCwd).toBe(discoveredCwd);
+  expect(runCwd).toContain("agent-InputOwner");
+
+  owner.send({ t: "artifact.leave" });
+  owner.send({ t: "hello", v: PROTOCOL_VERSION, sessionId: artifactId });
+  const snapshot = await owner.next("session.snapshot", (m) => m.session.history.some((h) => h.kind === "user"));
+  expect(snapshot.session.history.find((h) => h.kind === "user")).toMatchObject({ attachments, command });
+  owner.close();
+  stranger.close();
+});

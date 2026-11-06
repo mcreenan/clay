@@ -162,6 +162,18 @@ function Item({ item }: { item: HistoryItem }) {
             </span>
           )}
           {item.text}
+          {item.attachments?.length ? (
+            <div className="history-attachments">
+              {item.attachments.map((a, i) => (
+                <a key={i} href={`data:${a.mime};base64,${a.base64}`} download={a.name} title={`Download ${a.name}`}>
+                  {/^(image\/(png|jpeg|gif|webp))$/.test(a.mime) && (
+                    <img src={`data:${a.mime};base64,${a.base64}`} alt={a.name} />
+                  )}
+                  <span>{a.name}</span>
+                </a>
+              ))}
+            </div>
+          ) : null}
           {item.attached && <span className="hi-attached">+ {item.attached}</span>}
         </div>
       );

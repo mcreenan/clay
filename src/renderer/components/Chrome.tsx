@@ -4,6 +4,7 @@ import type { ChromeApplyResult, ChromeComponent, Effort, PromptTarget } from ".
 import { TITLEBAR_H, historyMini, send, uiCommand } from "../controller";
 import { useMyAgents, useSessionProvider, useUi } from "../store";
 import { HistoryList, Transcript, shortTool, toolSummary } from "./History";
+import { PromptComposer } from "./PromptComposer";
 import { Icon } from "./ToolIcon";
 
 /**
@@ -134,6 +135,8 @@ function AgentActivity() {
 export function PromptBar() {
   const applied = useApplied("prompt");
   const status = useUi((s) => s.status);
+  const config = useUi((s) => s.config);
+  const connected = useUi((s) => s.connected);
   const meta = usePromptMeta();
   const targets = useTargets();
   const to = targets?.current.to;
@@ -148,20 +151,8 @@ export function PromptBar() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  useLayoutEffect(() => {
-    const ta = input.current!;
-    ta.style.height = "0px";
-    ta.style.height = `${Math.min(ta.scrollHeight, 220)}px`;
-    ta.style.overflowY = ta.scrollHeight > 220 ? "auto" : "hidden";
-  }, [text, applied.fontSize]);
   const rect = layoutChrome("prompt", applied, w, h, height);
   const busy = status === "thinking" || status === "tool";
-  const submit = () => {
-    const t = text.trim();
-    if (!t) return;
-    send({ t: "prompt", text: t, ...(to && { to }) });
-    setText("");
-  };
   const hints: [string, string][] = busy
     ? [
         ["⏎", "queue"],
@@ -178,92 +169,69 @@ export function PromptBar() {
       style={chromeStyle(applied, { ...rect, y: Math.max(rect.y, 84) })}
     >
       <AgentActivity />
-      <form
+      <PromptComposer
         className={`chrome-box bezel prompt-bezel st-${status}`}
-        data-testid="prompt"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
+        text={text}
+        onText={setText}
+        onSend={(value, content) => {
+          send({ t: "prompt", text: value, ...content, ...(to && { to }) });
+          setText("");
         }}
-      >
-        <div className="pfoot">
-          {targets && (
-            <button
-              type="button"
-              className={`ptarget${to ? "" : " room"}`}
-              title={
-                targets.options.length > 1
-                  ? "Click to choose who this goes to"
-                  : "Connect your agent to the hub to ask it for changes"
-              }
-              data-testid="prompt-target"
-              onClick={targets.cycle}
-            >
-              to {targets.current.label}
-            </button>
-          )}
-          {meta.model && <span className="model">{meta.model}</span>}
-          {meta.effort && (
-            <span className="eff" title={`Effort: ${meta.effort}`}>
-              <span className="bars">
-                {Array.from({ length: meta.levels }, (_, i) => (
-                  <i key={i} className={i <= meta.level ? "on" : ""} />
-                ))}
+        provider={targets ? to?.provider : config?.provider}
+        cwd={targets ? undefined : config?.cwd}
+        to={to}
+        inputRef={input}
+        bodyRef={box}
+        disabled={!connected}
+        busy={busy}
+        placeholder={
+          targets
+            ? to
+              ? `Ask ${targets.current.label.split(" · ")[0]}…`
+              : "Message everyone (no agent)…"
+            : busy
+              ? "Queue a follow-up…"
+              : "Ask for a change…"
+        }
+        header={
+          <div className="pfoot">
+            {targets && (
+              <button
+                type="button"
+                className={`ptarget${to ? "" : " room"}`}
+                title={
+                  targets.options.length > 1
+                    ? "Click to choose who this goes to"
+                    : "Connect your agent to the hub to ask it for changes"
+                }
+                data-testid="prompt-target"
+                onClick={targets.cycle}
+              >
+                to {targets.current.label}
+              </button>
+            )}
+            {meta.model && <span className="model">{meta.model}</span>}
+            {meta.effort && (
+              <span className="eff" title={`Effort: ${meta.effort}`}>
+                <span className="bars">
+                  {Array.from({ length: meta.levels }, (_, i) => (
+                    <i key={i} className={i <= meta.level ? "on" : ""} />
+                  ))}
+                </span>
+                {meta.effort}
               </span>
-              {meta.effort}
+            )}
+            <span className="hints">
+              {hints.map(([k, l]) => (
+                <span key={l}>
+                  <kbd>{k}</kbd>
+                  {l}
+                </span>
+              ))}
             </span>
-          )}
-          <span className="hints">
-            {hints.map(([k, l]) => (
-              <span key={l}>
-                <kbd>{k}</kbd>
-                {l}
-              </span>
-            ))}
-          </span>
-        </div>
-        <div ref={box} className="well">
-          <textarea
-            ref={input}
-            rows={1}
-            value={text}
-            placeholder={
-              targets
-                ? to
-                  ? `Ask ${targets.current.label.split(" · ")[0]}…`
-                  : "Message everyone (no agent)…"
-                : busy
-                  ? "Queue a follow-up…"
-                  : "Ask for a change…"
-            }
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit();
-              } else if (e.key === "Escape" && busy) {
-                e.preventDefault();
-                send({ t: "interrupt" });
-              }
-            }}
-          />
-          {busy && (
-            <button type="button" className="key stop" title="Stop (Esc)" onClick={() => send({ t: "interrupt" })}>
-              <svg className="ic fill" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="7" y="7" width="10" height="10" rx="2" />
-              </svg>
-            </button>
-          )}
-          <button
-            type="submit"
-            className="key send"
-            title={busy ? "Queue (Enter)" : "Send (Enter)"}
-            disabled={!text.trim()}
-          >
-            <Icon name={busy ? "queue" : "up"} />
-          </button>
-        </div>
-      </form>
+          </div>
+        }
+      />
     </div>
   );
 }

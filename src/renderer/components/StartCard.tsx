@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { Effort, ProviderInfo } from "../../shared/protocol";
+import type { Effort, PromptContent, ProviderInfo } from "../../shared/protocol";
 import { fileOpen, send } from "../controller";
 import { useUi } from "../store";
 import { transport } from "../transport";
 import { ConnectHubLink } from "./Hub";
+import { PromptComposer } from "./PromptComposer";
 import { ProviderIcon } from "./ProviderIcon";
-import { Icon } from "./ToolIcon";
 
 const IDEAS = [
   "A 3D solar system",
@@ -278,14 +278,15 @@ export function StartCard() {
   const loading = !welcomed || Boolean(provider?.pending);
 
   const ready = Boolean(provider?.enabled) && connected;
-  const start = () => {
-    if (!prompt.trim() || !ready) return;
+  const start = (text: string, content: PromptContent) => {
+    if ((!text && !content.attachments?.length) || !ready) return;
     setBusy(true);
     useUi.setState({ error: undefined });
     send({
       t: "session.start",
       config: { provider: providerId, model: modelId, effort: effort ?? "", cwd },
-      prompt: prompt.trim(),
+      prompt: text,
+      ...content,
     });
   };
   const status = !connected
@@ -297,121 +298,103 @@ export function StartCard() {
         : (provider?.note ?? `${agent} unavailable`);
 
   return (
-    <form
-      className={`start${busy ? " busy" : ""}`}
-      data-testid="start"
-      onSubmit={(e) => {
-        e.preventDefault();
-        start();
-      }}
-    >
+    <div className={`start${busy ? " busy" : ""}`} data-testid="start">
       <img className="start-logo" src="./icon.svg" width={64} height={64} alt="" draggable={false} />
       <h1 className="start-title">What should we make?</h1>
 
-      <div className="composer bezel">
-        <div className="well" onClick={(e) => e.target === e.currentTarget && ta.current?.focus()}>
-          <textarea
-            ref={ta}
-            autoFocus
-            rows={2}
-            value={prompt}
-            placeholder={`Ask ${agent} to build anything…`}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                start();
-              }
-            }}
-          />
-          <button
-            className="key send"
-            type="submit"
-            title="Start (Enter)"
-            aria-label="Start"
-            disabled={!ready || !prompt.trim()}
-          >
-            {busy ? <span className="spinner" /> : <Icon name="up" />}
-          </button>
-        </div>
-        <div className="composer-bar">
-          {providers.length > 1 && (
-            <>
-              <Menu
-                label="Agent"
-                testId="provider"
-                value={providerId}
-                options={providers.map((p) => ({
-                  value: p.id,
-                  label: p.label,
-                  hint: p.pending ? "checking…" : p.enabled ? undefined : "unavailable",
-                  icon: <ProviderIcon id={p.id} label={p.label} />,
-                }))}
-                onChange={(v) => {
-                  setChosen(v);
-                  setModel(undefined);
-                  setEffort(undefined);
-                }}
-              />
-              <span className="composer-sep" />
-            </>
-          )}
-          <Menu
-            label="Model"
-            testId="model"
-            value={modelId}
-            disabled={!models.length}
-            options={
-              models.length
-                ? models.map((m) => ({
-                    value: m.id,
-                    label: m.label,
-                    hint: m.description,
-                    icon: <ProviderIcon id={providerId} label={agent} />,
-                  }))
-                : [
-                    {
-                      value: "",
-                      label: loading ? "Loading models…" : agent,
+      <PromptComposer
+        className="composer bezel"
+        text={prompt}
+        onText={setPrompt}
+        onSend={start}
+        provider={provider?.enabled ? providerId : undefined}
+        cwd={cwd}
+        inputRef={ta}
+        placeholder={`Ask ${agent} to build anything…`}
+        disabled={!ready}
+        pending={busy}
+        start
+        autoFocus
+        footer={
+          <div className="composer-bar">
+            {providers.length > 1 && (
+              <>
+                <Menu
+                  label="Agent"
+                  testId="provider"
+                  value={providerId}
+                  options={providers.map((p) => ({
+                    value: p.id,
+                    label: p.label,
+                    hint: p.pending ? "checking…" : p.enabled ? undefined : "unavailable",
+                    icon: <ProviderIcon id={p.id} label={p.label} />,
+                  }))}
+                  onChange={(v) => {
+                    setChosen(v);
+                    setModel(undefined);
+                    setEffort(undefined);
+                  }}
+                />
+                <span className="composer-sep" />
+              </>
+            )}
+            <Menu
+              label="Model"
+              testId="model"
+              value={modelId}
+              disabled={!models.length}
+              options={
+                models.length
+                  ? models.map((m) => ({
+                      value: m.id,
+                      label: m.label,
+                      hint: m.description,
                       icon: <ProviderIcon id={providerId} label={agent} />,
-                    },
-                  ]
-            }
-            onChange={(v) => {
-              setModel(v);
-              setEffort(undefined);
-            }}
-          />
-          {efforts.length > 0 && (
-            <>
-              <span className="composer-sep" />
-              <Menu
-                label="Effort"
-                testId="effort"
-                value={shownEffort ?? ""}
-                icon={<EffortBars n={efforts.length} level={efforts.indexOf(shownEffort!)} />}
-                options={efforts.map((e, i) => ({
-                  value: e,
-                  label: effortLabel(provider, e),
-                  icon: <EffortBars n={efforts.length} level={i} />,
-                }))}
-                onChange={(v) => setEffort(v)}
-              />
-            </>
-          )}
-          <span className="composer-sep" />
-          <CwdPicker cwd={cwd} setCwd={setCwd} />
-          <span className="composer-gap" />
-          <span className="hints">
-            <span>
-              <kbd>⏎</kbd>start
+                    }))
+                  : [
+                      {
+                        value: "",
+                        label: loading ? "Loading models…" : agent,
+                        icon: <ProviderIcon id={providerId} label={agent} />,
+                      },
+                    ]
+              }
+              onChange={(v) => {
+                setModel(v);
+                setEffort(undefined);
+              }}
+            />
+            {efforts.length > 0 && (
+              <>
+                <span className="composer-sep" />
+                <Menu
+                  label="Effort"
+                  testId="effort"
+                  value={shownEffort ?? ""}
+                  icon={<EffortBars n={efforts.length} level={efforts.indexOf(shownEffort!)} />}
+                  options={efforts.map((e, i) => ({
+                    value: e,
+                    label: effortLabel(provider, e),
+                    icon: <EffortBars n={efforts.length} level={i} />,
+                  }))}
+                  onChange={(v) => setEffort(v)}
+                />
+              </>
+            )}
+            <span className="composer-sep" />
+            <CwdPicker cwd={cwd} setCwd={setCwd} />
+            <span className="composer-gap" />
+            <span className="hints">
+              <span>
+                <kbd>⏎</kbd>start
+              </span>
+              <span>
+                <kbd>⇧⏎</kbd>newline
+              </span>
             </span>
-            <span>
-              <kbd>⇧⏎</kbd>newline
-            </span>
-          </span>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <div className="start-meta">
         <span className={`provider ${provider?.enabled || loading ? "" : "err"}`} title={status}>
@@ -450,6 +433,6 @@ export function StartCard() {
         ))}
       </div>
       {error && <div className="err start-err">{error}</div>}
-    </form>
+    </div>
   );
 }

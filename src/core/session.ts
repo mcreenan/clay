@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promptContent } from "../shared/prompt";
 import { clayArtifactPath } from "../shared/artifact";
 import { CHROME_BASE, CHROME_LIMITS, effectiveProps, layoutChrome, normaliseChromeProps } from "../shared/chrome";
 import {
@@ -27,6 +28,7 @@ import {
   type FrameResult,
   type HistoryItem,
   type PromptTarget,
+  type PromptContent,
   type Resource,
   type ServerMsg,
   type SessionConfig,
@@ -68,7 +70,7 @@ export interface Client {
   user?: Author;
 }
 
-export interface PromptOptions {
+export interface PromptOptions extends PromptContent {
   by?: Author;
   /** Hub: the agent that should act on the message. */
   to?: PromptTarget;
@@ -391,6 +393,7 @@ export class Session {
   // ================================================================ agent
 
   prompt(text: string, opts: PromptOptions = {}) {
+    const content = promptContent(opts);
     const attached = opts.room ? undefined : this.takeActivity();
     this.addItem({
       id: randomUUID(),
@@ -398,6 +401,7 @@ export class Session {
       kind: "user",
       text,
       attached: attached?.label,
+      ...content,
       ...(opts.by && { by: opts.by }),
       ...(opts.toLabel && { to: opts.toLabel }),
     });
@@ -416,7 +420,7 @@ export class Session {
         emit: (e) => this.onProviderEvent(e),
       });
     }
-    const meta: TurnMeta | undefined = opts.by || opts.to ? { by: opts.by, to: opts.to } : undefined;
+    const meta: TurnMeta = { by: opts.by, to: opts.to, ...content };
     this.run.send(attached ? `${attached.text}\n\n${text}` : text, meta);
   }
 
@@ -449,6 +453,14 @@ export class Session {
   private onProviderEvent(e: ProviderEvent) {
     const by = e.by ? { by: e.by } : {};
     switch (e.type) {
+      case "input-capabilities":
+        this.broadcast({
+          t: "input.update",
+          provider: this.d.config.provider,
+          capabilities: e.capabilities,
+          ...(e.by && { agent: e.by.id }),
+        });
+        return;
       case "session-id":
         this.d.providerSessionId = e.id;
         this.d.forkOnResume = undefined;

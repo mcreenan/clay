@@ -2,6 +2,8 @@ import { existsSync, mkdtempSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PROTOCOL_VERSION, type ClientMsg, type ProviderInfo, type SessionConfig } from "../shared/protocol";
+import { promptContent } from "../shared/prompt";
+import { EMPTY_INPUT } from "./providers/input";
 import { parseArtifact } from "./artifact";
 import { McpHost } from "./mcpHttp";
 import { AcpProvider, KNOWN_ACP_AGENTS, loadCustomAcpAgents } from "./providers/acp";
@@ -166,12 +168,30 @@ export class SessionManager {
           s.attach(client);
           return;
         }
+        case "input.discover": {
+          try {
+            const provider = this.providers[msg.provider];
+            if (!provider) throw new Error("That provider is not available.");
+            const cwd = path.resolve(
+              (msg.cwd?.trim() || session?.state.config.cwd || this.defaultCwd || os.tmpdir()).replace(
+                /^~(?=$|\/)/,
+                os.homedir(),
+              ),
+            );
+            const capabilities = (await provider.input?.(cwd)) ?? EMPTY_INPUT;
+            client.send({ t: "input.info", requestId: msg.requestId, capabilities });
+          } catch (e: any) {
+            client.send({ t: "input.info", requestId: msg.requestId, error: e?.message ?? String(e) });
+          }
+          return;
+        }
         case "session.start": {
           if (session) return fail("this window already has a session");
+          const content = promptContent(msg);
           const config = await this.validateConfig(msg.config);
           session = this.store.create(config);
           session.attach(client);
-          session.prompt(msg.prompt);
+          session.prompt(msg.prompt, content);
           return;
         }
         case "artifact.import": {
@@ -182,7 +202,7 @@ export class SessionManager {
       }
       // Frame reports from a window without a session are harmless; drop them.
       if (!session) return msg.t.startsWith("frame.") || msg.t === "viewport" ? undefined : fail("no session");
-      if (msg.t === "prompt") return session.prompt(String(msg.text ?? ""));
+      if (msg.t === "prompt") return session.prompt(String(msg.text ?? ""), promptContent(msg));
       await handleSessionMsg(session, client, msg);
     };
 

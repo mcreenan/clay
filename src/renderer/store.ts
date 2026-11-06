@@ -9,6 +9,7 @@ import {
   type CanvasStats,
   type ChromeState,
   type HistoryItem,
+  type InputCapabilities,
   type HubUser,
   type ProjectInfo,
   type ProviderInfo,
@@ -20,6 +21,7 @@ import {
 } from "../shared/protocol";
 
 export interface UiState {
+  inputUpdate?: { capabilities: InputCapabilities; provider: string; agent?: string };
   connected: boolean;
   welcomed: boolean;
   providers: ProviderInfo[];
@@ -111,6 +113,8 @@ const set = useUi.setState;
 /** Apply a core message to UI state. Canvas/frame relaying is done by the CanvasFrame host. */
 export function reduce(msg: ServerMsg) {
   switch (msg.t) {
+    case "input.update":
+      return set({ inputUpdate: msg });
     case "welcome":
       return set({
         welcomed: true,

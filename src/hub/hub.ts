@@ -10,6 +10,7 @@ import {
   type ProviderInfo,
   type SessionConfig,
 } from "../shared/protocol";
+import { promptContent } from "../shared/prompt";
 import { parseArtifact } from "../core/artifact";
 import { AGENT_LINK_VERSION, type AgentToHub, type HubToAgent } from "../core/agentLink";
 import { handleSessionMsg } from "../core/manager";
@@ -74,6 +75,15 @@ export class Hub {
   private readonly opened = new Map<string, Open>();
   private readonly agentConns = new Map<string, AgentConn>();
   private readonly uis = new Set<UiConn>();
+  private readonly inputRequests = new Map<
+    string,
+    {
+      agent: string;
+      ui: UiConn;
+      requestId: string;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   constructor(private readonly o: HubOptions) {
     this.store = new ProjectStore(o.dir);
@@ -128,6 +138,14 @@ export class Hub {
         return this.broadcastAgents();
       }
       switch (msg.t) {
+        case "input.info": {
+          const pending = this.inputRequests.get(msg.requestId);
+          if (!pending || pending.agent !== conn.id) return;
+          clearTimeout(pending.timer);
+          this.inputRequests.delete(msg.requestId);
+          pending.ui.client.send({ ...msg, requestId: pending.requestId });
+          return;
+        }
         case "providers":
           conn.providers = cleanProviders(msg.providers);
           return this.broadcastAgents();
@@ -149,6 +167,12 @@ export class Hub {
       close: () => {
         if (!conn) return;
         this.agentConns.delete(conn.id);
+        for (const [id, pending] of this.inputRequests)
+          if (pending.agent === conn.id) {
+            clearTimeout(pending.timer);
+            this.inputRequests.delete(id);
+            pending.ui.client.send({ t: "input.info", requestId: pending.requestId, error: "The agent disconnected." });
+          }
         for (const o of this.opened.values()) o.room.agentGone(conn.id);
         this.broadcastAgents();
       },
@@ -359,13 +383,30 @@ export class Hub {
       if (!o) return msg.t.startsWith("frame.") || msg.t === "viewport" ? undefined : fail("open an artifact first");
       const s = o.session;
       switch (msg.t) {
+        case "input.discover": {
+          const agent = msg.to && this.agentConns.get(msg.to.agent);
+          const reply = (error: string) => client.send({ t: "input.info", requestId: msg.requestId, error });
+          if (!agent) return reply("Select a connected agent.");
+          if (agent.user.id !== user.id) return reply(`Only ${agent.user.name} can use ${agent.label}.`);
+          if (!agent.providers.some((p) => p.id === msg.provider && p.enabled))
+            return reply("That provider is not available.");
+          const requestId = randomUUID();
+          const timer = setTimeout(() => {
+            this.inputRequests.delete(requestId);
+            reply("The agent did not return its commands in time.");
+          }, 20_000);
+          this.inputRequests.set(requestId, { agent: agent.id, ui, requestId: msg.requestId, timer });
+          agent.send({ t: "input.discover", requestId, artifactId: s.id, provider: msg.provider });
+          return;
+        }
         case "prompt": {
           const text = String(msg.text ?? "").trim();
-          if (!text) return;
+          if (!text && !msg.attachments?.length) return;
+          const content = promptContent(msg);
           const by = client.user!;
           if (!msg.to) {
             this.touch(o, user.name, `"${firstLine(text)}"`);
-            return s.prompt(text, { by, room: true });
+            return s.prompt(text, { by, room: true, ...content });
           }
           const agent = this.agentConns.get(String(msg.to.agent));
           if (!agent) return fail("that agent isn't connected");
@@ -374,6 +415,7 @@ export class Hub {
             by,
             to: { agent: agent.id, provider: String(msg.to.provider ?? "") },
             toLabel: agent.label,
+            ...content,
           });
         }
         case "interrupt": {
@@ -406,6 +448,11 @@ export class Hub {
       close: () => {
         leave();
         this.uis.delete(ui);
+        for (const [id, pending] of this.inputRequests)
+          if (pending.ui === ui) {
+            clearTimeout(pending.timer);
+            this.inputRequests.delete(id);
+          }
       },
     };
   }

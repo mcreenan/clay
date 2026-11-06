@@ -2,8 +2,9 @@ import { spawn, type ChildProcess } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
-import type { ModelInfo, ProviderInfo } from "../../shared/protocol";
+import type { InputCapabilities, ModelInfo, PromptContent, ProviderInfo } from "../../shared/protocol";
 import type { McpHost } from "../mcpHttp";
+import { prepareInput } from "./input";
 import { findExecutable, withTimeout } from "./exec";
 import type { AgentProvider, AgentRun, ProviderContext, ProviderEvent } from "./types";
 
@@ -114,8 +115,44 @@ function describeAccount(r: any): string | undefined {
   return a.type;
 }
 
+async function codexInput(server: AppServer, cwd: string): Promise<InputCapabilities> {
+  const result = await server.request("skills/list", { cwds: [cwd] });
+  return {
+    images: true,
+    files: true,
+    commands: (result.data ?? []).flatMap((row: any) =>
+      (row.skills ?? [])
+        .filter((s: any) => s.enabled !== false)
+        .map((s: any) => ({
+          name: s.name,
+          description: s.interface?.shortDescription || s.description || "",
+          invocation: `$${s.name}`,
+          path: s.path,
+        })),
+    ),
+  };
+}
+
 export class CodexProvider implements AgentProvider {
   constructor(private readonly mcp: McpHost) {}
+
+  async input(cwd: string): Promise<InputCapabilities> {
+    const exe = resolveCodexExecutable();
+    if (!exe) throw new Error("codex CLI not found on PATH");
+    const server = new AppServer(exe, [], cwd);
+    try {
+      return await withTimeout(
+        (async () => {
+          await server.initialize();
+          return codexInput(server, cwd);
+        })(),
+        15_000,
+        "asking Codex for skills",
+      );
+    } finally {
+      server.kill();
+    }
+  }
 
   async discover(): Promise<ProviderInfo> {
     const info: ProviderInfo = { id: "codex", label: "Codex", enabled: false, models: [], effortLabels: EFFORT_LABELS };
@@ -168,7 +205,7 @@ class CodexRun implements AgentRun {
   private threadId?: string;
   private turnId?: string;
   private turnStarted = 0;
-  private readonly queue: string[] = [];
+  private readonly queue: { text: string; content?: PromptContent }[] = [];
   private closed = false;
   private readonly ready: Promise<void>;
   private disposeMcp?: () => void;
@@ -249,7 +286,15 @@ class CodexRun implements AgentRun {
     res ??= await server.request("thread/start", { ...overrides, serviceName: "clay" });
     this.threadId = res.thread.id;
     this.emit({ type: "session-id", id: res.thread.id });
+    void this.refreshInput();
     this.pump();
+  }
+
+  private async refreshInput() {
+    try {
+      const capabilities = await codexInput(this.server!, this.ctx.config.cwd);
+      this.emit({ type: "input-capabilities", capabilities });
+    } catch {}
   }
 
   private async onRequest(method: string, p: any): Promise<unknown> {
@@ -272,6 +317,9 @@ class CodexRun implements AgentRun {
   private onNotification(method: string, p: any) {
     if (p?.threadId && p.threadId !== this.threadId) return; // sub-agent threads
     switch (method) {
+      case "skills/changed":
+        void this.refreshInput();
+        return;
       case "turn/started":
         this.turnId = p.turn.id;
         return;
@@ -326,13 +374,26 @@ class CodexRun implements AgentRun {
   /** Start the next queued prompt once the thread is ready and idle. */
   private pump() {
     if (!this.server || !this.threadId || this.turnId || !this.queue.length || this.closed) return;
-    const text = this.queue.shift()!;
+    const { text, content } = this.queue.shift()!;
     this.turnId = "starting";
     this.turnStarted = Date.now();
+    let input: object[];
+    try {
+      const prepared = prepareInput(this.ctx.config.cwd, text, content);
+      input = prepared.text ? [{ type: "text", text: prepared.text, text_elements: [] }] : [];
+      for (const a of prepared.pictures) input.push({ type: "image", url: `data:${a.mime};base64,${a.base64}` });
+      if (prepared.command?.path && text.split(/\s+/).includes(prepared.command.invocation))
+        input.push({ type: "skill", name: prepared.command.name, path: prepared.command.path });
+    } catch (e: any) {
+      this.turnId = undefined;
+      this.emit({ type: "turn-end", ok: false, error: e?.message ?? String(e) });
+      this.pump();
+      return;
+    }
     this.server
       .request("turn/start", {
         threadId: this.threadId,
-        input: [{ type: "text", text, text_elements: [] }],
+        input,
         effort: this.ctx.config.effort || null,
       })
       .then((r: any) => {
@@ -345,8 +406,8 @@ class CodexRun implements AgentRun {
       });
   }
 
-  send(text: string) {
-    this.queue.push(text);
+  send(text: string, content?: PromptContent) {
+    this.queue.push({ text, content });
     void this.ready.then(() => this.pump());
   }
 

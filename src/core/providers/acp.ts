@@ -4,9 +4,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
-import type { ModelInfo, ProviderInfo } from "../../shared/protocol";
+import type { InputCapabilities, ModelInfo, PromptContent, ProviderInfo } from "../../shared/protocol";
 import type { McpEndpoint, McpHost } from "../mcpHttp";
 import { mcpToolName, type ToolSet } from "../tools";
+import { EMPTY_INPUT, prepareInput } from "./input";
 import { findExecutable, withTimeout } from "./exec";
 import type { AgentProvider, AgentRun, ProviderContext, ProviderEvent } from "./types";
 
@@ -162,6 +163,48 @@ export class AcpProvider implements AgentProvider {
     this.id = `acp-${def.id}`;
   }
 
+  async input(cwd: string): Promise<InputCapabilities> {
+    const exe = findExecutable(this.def.command);
+    if (!exe) throw new Error(`${this.def.command} not found on PATH`);
+    const capabilities: InputCapabilities = { ...EMPTY_INPUT, commands: [] };
+    let commandsReceived!: () => void;
+    const commandsReady = new Promise<void>((resolve) => {
+      commandsReceived = resolve;
+    });
+    let commandsTimer: ReturnType<typeof setTimeout> | undefined;
+    const agent = new AgentProcess(exe, this.def, cwd, {
+      requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
+      sessionUpdate: (n) => {
+        if (n.update.sessionUpdate === "available_commands_update") {
+          capabilities.commands = acpCommands(n.update.availableCommands);
+          commandsReceived();
+        }
+      },
+    });
+    try {
+      return await withTimeout(
+        (async () => {
+          const init = await agent.initialize();
+          capabilities.images = Boolean(init.agentCapabilities?.promptCapabilities?.image);
+          await agent.call(agent.conn.newSession({ cwd, mcpServers: [] }));
+          // Command updates may follow the session/new response. Some agents publish none.
+          await Promise.race([
+            commandsReady,
+            new Promise<void>((resolve) => {
+              commandsTimer = setTimeout(resolve, 500);
+            }),
+          ]);
+          return capabilities;
+        })(),
+        15_000,
+        "asking the agent for commands",
+      );
+    } finally {
+      clearTimeout(commandsTimer);
+      agent.kill();
+    }
+  }
+
   /** Start the agent and open a throwaway session to learn its auth state, models and reasoning levels. */
   async discover(): Promise<ProviderInfo> {
     const { def } = this;
@@ -236,6 +279,15 @@ export class AcpProvider implements AgentProvider {
   }
 }
 
+function acpCommands(commands: acp.AvailableCommand[]) {
+  return commands.map((c) => ({
+    name: c.name,
+    description: c.description,
+    invocation: `/${c.name}`,
+    argumentHint: c.input?.hint,
+  }));
+}
+
 interface ToolState {
   started: boolean;
   name: string;
@@ -250,7 +302,8 @@ class AcpRun implements AgentRun {
   private closed = false;
   private readonly ready: Promise<void>;
   private endpoint?: McpEndpoint;
-  private readonly queue: string[] = [];
+  private readonly queue: { text: string; content?: PromptContent }[] = [];
+  private readonly input: InputCapabilities = { ...EMPTY_INPUT, commands: [] };
   private busy = false;
   /** Updates while `session/load` replays old history are not news. */
   private replaying = false;
@@ -293,6 +346,7 @@ class AcpRun implements AgentRun {
     void agent.exited.then((why) => this.closed || this.fatal(why));
 
     const init = await agent.initialize();
+    this.input.images = Boolean(init.agentCapabilities?.promptCapabilities?.image);
     const http = Boolean(init.agentCapabilities?.mcpCapabilities?.http);
     const e = this.endpoint;
     const mcpServers: acp.McpServer[] = [
@@ -337,6 +391,7 @@ class AcpRun implements AgentRun {
       this.needsInstructions = true;
     }
     this.sessionId = session.sessionId;
+    this.emit({ type: "input-capabilities", capabilities: this.input });
     await this.applyConfig(session.configOptions);
     this.emit({ type: "session-id", id: session.sessionId });
     void this.pump();
@@ -378,9 +433,13 @@ class AcpRun implements AgentRun {
   private async pump() {
     if (this.busy || !this.sessionId || this.closed || !this.queue.length) return;
     this.busy = true;
-    let text = this.queue.shift()!;
+    const queued = this.queue.shift()!;
+    let text = queued.text;
     if (this.needsInstructions) {
-      text = `<canvas-instructions>\n${this.ctx.systemPrompt}\n</canvas-instructions>\n\n${text}`;
+      const instructions = `<canvas-instructions>
+${this.ctx.systemPrompt}
+</canvas-instructions>`;
+      text = /^\/[\w:.-]+(?:\s|$)/.test(text) ? `${text}\n\n${instructions}` : `${instructions}\n\n${text}`;
       this.needsInstructions = false;
     }
     this.turn++;
@@ -388,9 +447,10 @@ class AcpRun implements AgentRun {
     this.lastKind = undefined;
     const started = Date.now();
     try {
-      const r = await this.agent!.call(
-        this.agent!.conn.prompt({ sessionId: this.sessionId, prompt: [{ type: "text", text }] }),
-      );
+      const prepared = prepareInput(this.ctx.config.cwd, text, queued.content, this.input.images);
+      const prompt: acp.ContentBlock[] = prepared.text ? [{ type: "text", text: prepared.text }] : [];
+      for (const a of prepared.pictures) prompt.push({ type: "image", data: a.base64, mimeType: a.mime });
+      const r = await this.agent!.call(this.agent!.conn.prompt({ sessionId: this.sessionId, prompt }));
       this.finishTools();
       const ok = r.stopReason === "end_turn";
       const why: Record<string, string> = {
@@ -428,7 +488,13 @@ class AcpRun implements AgentRun {
   }
 
   private onUpdate(n: acp.SessionNotification) {
-    if (this.replaying || n.sessionId !== this.sessionId) return;
+    if (this.sessionId && n.sessionId !== this.sessionId) return;
+    if (n.update.sessionUpdate === "available_commands_update") {
+      this.input.commands = acpCommands(n.update.availableCommands);
+      this.emit({ type: "input-capabilities", capabilities: this.input });
+      return;
+    }
+    if (this.replaying || !this.sessionId) return;
     const u = n.update as any;
     switch (u.sessionUpdate) {
       case "agent_message_chunk":
@@ -525,8 +591,8 @@ class AcpRun implements AgentRun {
     return false;
   }
 
-  send(text: string) {
-    this.queue.push(text);
+  send(text: string, content?: PromptContent) {
+    this.queue.push({ text, content });
     void this.ready.then(() => this.pump());
   }
 

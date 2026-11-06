@@ -2,8 +2,9 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { WebSocket } from "ws";
 import { z } from "zod";
-import type { Author, HubUser, ProviderInfo } from "../shared/protocol";
+import type { Author, HubUser, InputCapabilities, PromptContent, ProviderInfo } from "../shared/protocol";
 import type { AgentProvider, AgentRun, ProviderEvent } from "./providers/types";
+import { EMPTY_INPUT } from "./providers/input";
 import { canvasSystemPrompt } from "./systemPrompt";
 import { TOOL_DEFS, type ToolDef, type ToolOutput, type ToolSet } from "./tools";
 
@@ -32,6 +33,7 @@ export interface TurnContext {
 }
 
 export type AgentToHub =
+  | { t: "input.info"; requestId: string; capabilities?: InputCapabilities; error?: string }
   | { t: "hello"; v: number; token: string; name: string; providers: ProviderInfo[]; handoffs: boolean }
   | { t: "providers"; providers: ProviderInfo[] }
   | { t: "event"; turnId: string; event: ProviderEvent }
@@ -40,7 +42,15 @@ export type AgentToHub =
 export type HubToAgent =
   | { t: "welcome"; hostId: string; user: HubUser }
   | { t: "denied"; message: string }
-  | { t: "turn"; turnId: string; artifactId: string; provider: string; text: string; context: TurnContext }
+  | { t: "input.discover"; requestId: string; artifactId: string; provider: string }
+  | ({
+      t: "turn";
+      turnId: string;
+      artifactId: string;
+      provider: string;
+      text: string;
+      context: TurnContext;
+    } & PromptContent)
   | { t: "tool.result"; callId: string; output: ToolOutput }
   | { t: "interrupt"; turnId: string };
 
@@ -210,6 +220,20 @@ export class AgentLink {
         this.log(`hub refused the agent: ${msg.message}`);
         this.ws?.close();
         return;
+      case "input.discover": {
+        void (async () => {
+          try {
+            const provider = this.o.providers[msg.provider];
+            if (!provider) throw new Error("That provider is not available on this machine.");
+            const slot = this.slot(msg.artifactId, msg.provider);
+            const capabilities = (await provider.input?.(slot.cwd)) ?? EMPTY_INPUT;
+            this.send({ t: "input.info", requestId: msg.requestId, capabilities });
+          } catch (e: any) {
+            this.send({ t: "input.info", requestId: msg.requestId, error: e?.message ?? String(e) });
+          }
+        })();
+        return;
+      }
       case "turn":
         return this.turn(msg);
       case "tool.result": {
@@ -276,7 +300,7 @@ export class AgentLink {
       });
     }
     this.log(`turn in "${msg.context.artifactTitle}" (${msg.context.projectName}) with ${msg.provider}`);
-    slot.run.send(msg.text);
+    slot.run.send(msg.text, { attachments: msg.attachments, command: msg.command });
   }
 
   private onEvent(key: string, slot: Slot, e: ProviderEvent) {

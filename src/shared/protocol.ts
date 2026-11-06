@@ -190,6 +190,38 @@ export type ProviderId = string;
 /** Reasoning effort as the provider names it (Claude: low…max; Codex: minimal…ultra; ACP: the agent's own levels). */
 export type Effort = string;
 
+/** Attachment bytes travel with the prompt, including to agents on other machines. */
+export interface PromptAttachment {
+  name: string;
+  mime: string;
+  base64: string;
+}
+
+export interface PromptCommand {
+  name: string;
+  description: string;
+  /** Provider-native token, e.g. /review or $skill-creator. */
+  invocation: string;
+  argumentHint?: string;
+  /** Codex skills need their discovered path for explicit selection. */
+  path?: string;
+}
+
+export interface InputCapabilities {
+  commands: PromptCommand[];
+  images: boolean;
+  files: boolean;
+}
+
+export interface PromptContent {
+  attachments?: PromptAttachment[];
+  command?: PromptCommand;
+}
+
+export const MAX_ATTACHMENTS = 10;
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_PROMPT_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
 export interface ModelInfo {
   id: string;
   label: string;
@@ -238,7 +270,7 @@ export interface Author {
 }
 
 export type HistoryItem = (
-  | { id: string; ts: number; kind: "user"; text: string; attached?: string; to?: string }
+  | ({ id: string; ts: number; kind: "user"; text: string; attached?: string; to?: string } & PromptContent)
   | { id: string; ts: number; kind: "assistant"; text: string }
   | { id: string; ts: number; kind: "thinking"; text: string }
   | {
@@ -360,9 +392,10 @@ export interface FrameResult {
 
 export type ClientMsg =
   | { t: "hello"; v: number; sessionId?: string }
-  | { t: "session.start"; config: SessionConfig; prompt: string }
+  | ({ t: "session.start"; config: SessionConfig; prompt: string } & PromptContent)
   /** On a hub, `to` names the agent that should act on it; without it the message is for the room only. */
-  | { t: "prompt"; text: string; to?: PromptTarget }
+  | ({ t: "prompt"; text: string; to?: PromptTarget } & PromptContent)
+  | { t: "input.discover"; requestId: string; provider: ProviderId; cwd?: string; to?: PromptTarget }
   | { t: "interrupt" }
   | { t: "viewport"; width: number; height: number }
   // canvas frame -> core (relayed by the UI)
@@ -405,6 +438,8 @@ export type ClientMsg =
   | { t: "revisions.restore"; commit: string };
 
 export type ServerMsg =
+  | { t: "input.info"; requestId: string; capabilities?: InputCapabilities; error?: string }
+  | { t: "input.update"; capabilities: InputCapabilities; provider: ProviderId; agent?: string }
   /**
    * `defaultCwd` is empty when each new session gets its own temporary directory.
    * `hub` is set when the other end is a Clay hub: the client must `hub.join` before anything else.

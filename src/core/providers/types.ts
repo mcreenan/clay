@@ -1,4 +1,11 @@
-import type { Author, PromptTarget, ProviderInfo, SessionConfig } from "../../shared/protocol";
+import type {
+  Author,
+  InputCapabilities,
+  PromptContent,
+  PromptTarget,
+  ProviderInfo,
+  SessionConfig,
+} from "../../shared/protocol";
 import type { ToolSet } from "../tools";
 
 /**
@@ -6,6 +13,7 @@ import type { ToolSet } from "../tools";
  * `by` attributes them on a hub, where several people's agents share a session.
  */
 export type ProviderEvent = (
+  | { type: "input-capabilities"; capabilities: InputCapabilities }
   | { type: "session-id"; id: string }
   | { type: "text-delta"; messageId: string; text: string }
   | { type: "text"; messageId: string; text: string }
@@ -22,7 +30,7 @@ export type ProviderEvent = (
 ) & { by?: Author };
 
 /** Who a message is from and which agent should act on it (hub sessions; local providers ignore it). */
-export interface TurnMeta {
+export interface TurnMeta extends PromptContent {
   by?: Author;
   to?: PromptTarget;
 }
@@ -46,6 +54,8 @@ export interface AgentRun {
 }
 
 export interface AgentProvider {
+  /** Discover commands in the actual working directory without sending a model turn. */
+  input?(cwd: string): Promise<InputCapabilities>;
   /**
    * Probe availability, auth and models from the host (cached by the caller).
    * Slow details may be filled into the returned info later, followed by `onUpdate`.

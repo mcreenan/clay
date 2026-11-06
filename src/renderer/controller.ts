@@ -1,3 +1,4 @@
+import type { InputCapabilities, PromptTarget } from "../shared/protocol";
 import { effectiveProps } from "../shared/chrome";
 import { PROTOCOL_VERSION, type ClientMsg, type ServerMsg, type UiCommand } from "../shared/protocol";
 import { CanvasFrameHost } from "./canvasFrame";
@@ -9,6 +10,27 @@ import { saveHub, savedHub, transport, type HubLogin } from "./transport";
 let frame: CanvasFrameHost | undefined;
 
 export const send = (msg: ClientMsg) => transport.send(msg);
+
+const inputRequests = new Map<
+  string,
+  {
+    resolve: (value: InputCapabilities) => void;
+    reject: (error: Error) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
+>();
+
+export function discoverInput(provider: string, cwd?: string, to?: PromptTarget): Promise<InputCapabilities> {
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      inputRequests.delete(requestId);
+      reject(new Error("Command discovery timed out. You can still send a prompt."));
+    }, 25_000);
+    inputRequests.set(requestId, { resolve, reject, timer });
+    send({ t: "input.discover", requestId, provider, cwd, to });
+  });
+}
 
 export const toggleOverlay = () => useUi.setState((s) => ({ overlayHidden: !s.overlayHidden }));
 
@@ -170,6 +192,15 @@ function openSession(sessionId: string) {
 }
 
 function onMessage(msg: ServerMsg) {
+  if (msg.t === "input.info") {
+    const pending = inputRequests.get(msg.requestId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    inputRequests.delete(msg.requestId);
+    if (msg.capabilities) pending.resolve(msg.capabilities);
+    else pending.reject(new Error(msg.error || "Commands are not available."));
+    return;
+  }
   reduce(msg);
   if (msg.t === "welcome") {
     if (!msg.hub)

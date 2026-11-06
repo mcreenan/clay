@@ -39,7 +39,7 @@ export interface RoomHost {
   onTurn(agent: AgentConn, active: boolean, request?: string): void;
 }
 
-interface Turn {
+interface Turn extends Pick<TurnMeta, "attachments" | "command"> {
   id: string;
   agent: AgentConn;
   provider: string;
@@ -124,7 +124,16 @@ export class Room implements AgentProvider {
     const provider = meta!.to!.provider || defaultProvider(agent);
     if (!provider || !agent.providers.some((p) => p.id === provider && p.enabled))
       return this.refuse(`${agent.label} can't run ${provider ?? "any agent"} right now.`);
-    this.queue.push({ id: `t${++turnSeq}-${Date.now().toString(36)}`, agent, provider, text, from, at });
+    this.queue.push({
+      id: `t${++turnSeq}-${Date.now().toString(36)}`,
+      agent,
+      provider,
+      text,
+      from,
+      at,
+      attachments: meta?.attachments,
+      command: meta?.command,
+    });
     if (this.active) this.emit({ type: "notice", level: "info", text: `Queued for ${agent.label}.` });
     this.pump();
   }
@@ -147,6 +156,8 @@ export class Room implements AgentProvider {
       artifactId: this.artifactId,
       provider: turn.provider,
       text: this.compose(turn),
+      attachments: turn.attachments,
+      command: turn.command,
       context: { ...this.host.context(), agentLabel: turn.agent.label, from: turn.from },
     });
   }
@@ -192,6 +203,14 @@ export class Room implements AgentProvider {
       case "tool-start":
       case "tool-end":
         return this.emit({ ...e, id: id(e.id), by });
+      case "input-capabilities":
+        this.session.broadcast({
+          t: "input.update",
+          provider: this.active!.provider,
+          agent: this.active!.agent.id,
+          capabilities: e.capabilities,
+        });
+        return;
       case "notice":
         return this.emit({ ...e, by });
       case "turn-end":

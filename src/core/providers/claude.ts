@@ -1,8 +1,15 @@
-import { query, type Options, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query,
+  type Options,
+  type SDKMessage,
+  type SDKUserMessage,
+  type SlashCommand,
+} from "@anthropic-ai/claude-agent-sdk";
 import os from "node:os";
-import type { Effort, ModelInfo, ProviderInfo } from "../../shared/protocol";
+import type { Effort, InputCapabilities, ModelInfo, ProviderInfo } from "../../shared/protocol";
 import { createCanvasMcpServer, MCP_SERVER_NAME, mcpToolName } from "../tools";
-import { findExecutable } from "./exec";
+import { prepareInput } from "./input";
+import { findExecutable, withTimeout } from "./exec";
 import type { AgentProvider, AgentRun, ProviderContext } from "./types";
 
 /**
@@ -33,10 +40,10 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
   private items: SDKUserMessage[] = [];
   private wake?: () => void;
   private closed = false;
-  push(text: string) {
+  push(content: SDKUserMessage["message"]["content"]) {
     this.items.push({
       type: "user",
-      message: { role: "user", content: text },
+      message: { role: "user", content },
       parent_tool_use_id: null,
     } as SDKUserMessage);
     this.wake?.();
@@ -57,7 +64,29 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
 
 const never: AsyncIterable<SDKUserMessage> = { [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) };
 
+function claudeInput(commands: SlashCommand[]): InputCapabilities {
+  return {
+    images: true,
+    files: true,
+    commands: commands.map((c) => ({
+      name: c.name,
+      description: c.description,
+      invocation: `/${c.name}`,
+      argumentHint: c.argumentHint,
+    })),
+  };
+}
+
 export class ClaudeProvider implements AgentProvider {
+  async input(cwd: string): Promise<InputCapabilities> {
+    const q = query({ prompt: never, options: { ...baseOptions(), cwd } });
+    try {
+      return claudeInput(await withTimeout(q.supportedCommands(), 15_000, "asking Claude for commands"));
+    } finally {
+      q.close();
+    }
+  }
+
   async discover(onUpdate?: () => void): Promise<ProviderInfo> {
     const info: ProviderInfo = { id: "claude", label: "Claude", enabled: false, models: [] };
     const exe = resolveClaudeExecutable();
@@ -158,6 +187,12 @@ export class ClaudeProvider implements AgentProvider {
     });
 
     let closed = false;
+    void q
+      .supportedCommands()
+      .then((commands) => {
+        if (!closed) ctx.emit({ type: "input-capabilities", capabilities: claudeInput(commands) });
+      })
+      .catch(() => {});
     const st: StreamState = { msgId: "", streamed: new Set() };
     void (async () => {
       try {
@@ -168,7 +203,25 @@ export class ClaudeProvider implements AgentProvider {
     })();
 
     return {
-      send: (text) => input.push(text),
+      send: (text, meta) => {
+        try {
+          const prepared = prepareInput(config.cwd, text, meta);
+          const content: Exclude<SDKUserMessage["message"]["content"], string> = [];
+          if (prepared.text) content.push({ type: "text", text: prepared.text });
+          for (const a of prepared.pictures)
+            content.push({
+              type: "image",
+              source: {
+                type: "base64",
+                data: a.base64,
+                media_type: a.mime as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
+              },
+            });
+          input.push(content);
+        } catch (e: any) {
+          ctx.emit({ type: "turn-end", ok: false, error: e?.message ?? String(e) });
+        }
+      },
       interrupt: async () => {
         await q.interrupt();
       },
@@ -189,6 +242,10 @@ interface StreamState {
 
 function handle(msg: SDKMessage, ctx: ProviderContext, st: StreamState) {
   const { emit } = ctx;
+  if (msg.type === "system" && msg.subtype === "commands_changed") {
+    emit({ type: "input-capabilities", capabilities: claudeInput(msg.commands) });
+    return;
+  }
   // Ignore subagent traffic; only the main thread is shown.
   if ("parent_tool_use_id" in msg && msg.parent_tool_use_id) return;
   switch (msg.type) {

@@ -1,3 +1,4 @@
+import { promptContent } from "../shared/prompt";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -379,6 +380,14 @@ function sanitiseHistory(v: unknown): HistoryItem[] {
   return v.filter((h): h is HistoryItem => {
     if (!h || typeof h !== "object" || typeof h.id !== "string" || !HISTORY_KINDS.has(h.kind)) return false;
     if ("text" in h && typeof h.text !== "string") return false;
+    if (h.kind === "user") {
+      try {
+        Object.assign(h, promptContent(h));
+      } catch {
+        delete h.attachments;
+        delete h.command;
+      }
+    }
     if (h.kind === "tool") {
       if (typeof h.name !== "string") return false;
       if (h.state === "running") h.state = "error";
