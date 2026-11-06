@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AppSettings } from "../shared/settings";
 import {
   emptyCanvas,
   emptyChrome,
@@ -21,6 +22,10 @@ import {
 } from "../shared/protocol";
 
 export interface UiState {
+  settings?: AppSettings;
+  settingsOpen: boolean;
+  settingsSaving: boolean;
+  settingsError?: string;
   inputUpdate?: { capabilities: InputCapabilities; provider: string; agent?: string };
   connected: boolean;
   welcomed: boolean;
@@ -70,6 +75,8 @@ export interface UiState {
 }
 
 export const useUi = create<UiState>(() => ({
+  settingsOpen: false,
+  settingsSaving: false,
   connected: false,
   welcomed: false,
   providers: [],
@@ -113,6 +120,18 @@ const set = useUi.setState;
 /** Apply a core message to UI state. Canvas/frame relaying is done by the CanvasFrame host. */
 export function reduce(msg: ServerMsg) {
   switch (msg.t) {
+    case "settings":
+      return set({
+        settings: msg.settings,
+        ...(msg.saved && {
+          settingsSaving: false,
+          settingsError: undefined,
+          settingsOpen: false,
+          toast: "Settings saved",
+        }),
+      });
+    case "settings.error":
+      return set({ settingsSaving: false, settingsError: msg.message });
     case "input.update":
       return set({ inputUpdate: msg });
     case "welcome":

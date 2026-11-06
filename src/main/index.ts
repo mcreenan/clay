@@ -189,8 +189,11 @@ ipcMain.handle("ac:connect", (e, hub?: string) => {
       ? relayToHub(hub, client, (name, token) => name && token && linkAgents(hub, name, token))
       : manager.connect(client),
   );
+  if (hub) manager.handleSettings(client, { t: "settings.get" });
 });
-ipcMain.on("ac:msg", (e, msg: ClientMsg) => void conns.get(e.sender.id)?.receive(msg));
+ipcMain.on("ac:msg", (e, msg: ClientMsg) => {
+  if (!manager.handleSettings(clientFor(e.sender), msg)) void conns.get(e.sender.id)?.receive(msg);
+});
 ipcMain.on("ac:newWindow", () => createWindow());
 ipcMain.handle("ac:processStats", (e) => processStats(e.sender));
 ipcMain.on("ac:file", (e, cmd: FileCommand) => {
@@ -330,6 +333,7 @@ function buildMenu() {
           { label: "Rename…", click: ui("rename") },
           { type: "separator" },
           { label: "Run a hub server…", click: ui("hubSetup") },
+          { label: "Settings…", accelerator: "CmdOrCtrl+,", click: ui("settings") },
           { type: "separator" },
           { role: "close" },
           ...(MAC ? [] : [{ role: "quit" as const }]),

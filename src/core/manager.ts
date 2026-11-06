@@ -12,6 +12,7 @@ import { CodexProvider } from "./providers/codex";
 import { findExecutable } from "./providers/exec";
 import type { AgentProvider } from "./providers/types";
 import { SessionStore, type ArtifactSource, type Client, type Session } from "./session";
+import { SettingsStore } from "./settings";
 
 /**
  * The session core: providers, the session store and per-client message
@@ -20,6 +21,7 @@ import { SessionStore, type ArtifactSource, type Client, type Session } from "./
 export class SessionManager {
   readonly providers: Record<string, AgentProvider>;
   readonly store: SessionStore;
+  readonly settings: SettingsStore;
   private readonly mcp = new McpHost();
   /** Latest info per provider; placeholders (`pending`) until its discovery finishes. */
   private readonly infos = new Map<string, ProviderInfo>();
@@ -33,7 +35,11 @@ export class SessionManager {
     readonly defaultCwd = process.env.CLAY_DEFAULT_CWD ?? "",
     readonly platform: "web" | "electron" = "web",
   ) {
-    this.providers = { claude: new ClaudeProvider(), codex: new CodexProvider(this.mcp) };
+    this.settings = new SettingsStore(dataDir);
+    this.providers = {
+      claude: new ClaudeProvider(() => this.settings.get().providers.claude),
+      codex: new CodexProvider(this.mcp),
+    };
     this.labels.set("claude", "Claude");
     this.labels.set("codex", "Codex");
     // Known ACP agents are offered only when installed; declared ones always (their errors are useful).
@@ -146,6 +152,7 @@ export class SessionManager {
     let session: Session | undefined;
     const fail = (message: string) => client.send({ t: "error", message });
     this.clients.add(client);
+    this.handleSettings(client, { t: "settings.get" });
 
     // Welcome at once; providers still being asked arrive in later `providers` messages.
     void this.discover();
@@ -158,6 +165,7 @@ export class SessionManager {
     });
 
     const handle = async (msg: ClientMsg) => {
+      if (this.handleSettings(client, msg)) return;
       switch (msg.t) {
         case "hello": {
           if (msg.v !== PROTOCOL_VERSION) return fail(`protocol mismatch: core speaks v${PROTOCOL_VERSION}`);
@@ -216,6 +224,19 @@ export class SessionManager {
         return session;
       },
     };
+  }
+
+  handleSettings(client: Client, msg: ClientMsg): boolean {
+    if (msg.t !== "settings.get" && msg.t !== "settings.set") return false;
+    try {
+      const settings = msg.t === "settings.set" ? this.settings.set(msg.settings) : this.settings.get();
+      client.send({ t: "settings", settings, ...(msg.t === "settings.set" && { saved: true }) });
+      if (msg.t === "settings.set")
+        for (const other of this.clients) if (other.id !== client.id) other.send({ t: "settings", settings });
+    } catch {
+      client.send({ t: "settings.error", message: "Could not save settings. Check the values and try again." });
+    }
+    return true;
   }
 
   shutdown() {

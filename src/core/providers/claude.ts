@@ -7,6 +7,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import os from "node:os";
 import type { Effort, InputCapabilities, ModelInfo, ProviderInfo } from "../../shared/protocol";
+import { CLAUDE_PERMISSION_MODES, type ClaudeSettings } from "../../shared/settings";
 import { createCanvasMcpServer, MCP_SERVER_NAME, mcpToolName } from "../tools";
 import { prepareInput } from "./input";
 import { findExecutable, withTimeout } from "./exec";
@@ -78,6 +79,8 @@ function claudeInput(commands: SlashCommand[]): InputCapabilities {
 }
 
 export class ClaudeProvider implements AgentProvider {
+  constructor(private readonly settings: () => ClaudeSettings = () => ({})) {}
+
   async input(cwd: string): Promise<InputCapabilities> {
     const q = query({ prompt: never, options: { ...baseOptions(), cwd } });
     try {
@@ -161,6 +164,12 @@ export class ClaudeProvider implements AgentProvider {
     const input = new InputQueue();
     const { config } = ctx;
     const canvasTools = ctx.tools.defs.map((t) => mcpToolName(t.name));
+    const settings = this.settings();
+    const environmentMode = CLAUDE_PERMISSION_MODES.find((mode) => mode === process.env.CLAY_PERMISSION_MODE);
+    const permissionMode = settings.permissionMode ?? environmentMode;
+    const sandbox =
+      settings.sandbox ??
+      (process.env.CLAY_SANDBOX === "0" ? false : process.env.CLAY_SANDBOX === "1" ? true : undefined);
     const q = query({
       prompt: input,
       options: {
@@ -174,15 +183,9 @@ export class ClaudeProvider implements AgentProvider {
         includePartialMessages: true,
         mcpServers: { [MCP_SERVER_NAME]: createCanvasMcpServer(ctx.tools) },
         allowedTools: [...PREAPPROVED, ...canvasTools],
-        // Edits are auto-accepted in the working directory. Bash runs in Claude Code's sandbox
-        // (writes confined to cwd, network allowed) and is auto-approved there.
-        permissionMode: (process.env.CLAY_PERMISSION_MODE as Options["permissionMode"]) ?? "acceptEdits",
-        sandbox: {
-          enabled: process.env.CLAY_SANDBOX !== "0",
-          autoAllowBashIfSandboxed: true,
-          allowUnsandboxedCommands: false,
-          network: { allowedDomains: ["*"], allowLocalBinding: true },
-        },
+        ...(permissionMode && { permissionMode }),
+        ...(permissionMode === "bypassPermissions" && { allowDangerouslySkipPermissions: true }),
+        ...(sandbox !== undefined && { sandbox: { enabled: sandbox } }),
       },
     });
 

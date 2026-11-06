@@ -144,7 +144,7 @@ This is a prototype for a trusted group on a LAN or tailnet.
 
 **Trust:**
 
-- **Identity.** The token is shared. Anyone who has it can join under any name, including someone else's, and then prompt that person's agent. Agents run in the same sandbox as in local Clay: commands can write only inside their working directory, and network access is allowed. Don't share the token beyond people you'd let use your agent.
+- **Identity.** The token is shared. Anyone who has it can join under any name, including someone else's, and then prompt that person's agent. Agents use the same permissions and sandbox settings as in local Clay. Claude inherits its host's Claude settings unless that host sets an override in Clay. Don't share the token beyond people you would let use your agent.
 - **Access.** There are no per-project permissions. Every member can see and change every project.
 
 **Concurrency:**

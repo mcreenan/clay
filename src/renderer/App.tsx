@@ -3,6 +3,7 @@ import { ChromeLayer } from "./components/Chrome";
 import { JoinCard, ProjectList, ProjectView } from "./components/Hub";
 import { HubSetup } from "./components/HubSetup";
 import { StartCard } from "./components/StartCard";
+import { Settings } from "./components/Settings";
 import { TitleBar, Toast } from "./components/TitleBar";
 import { attachStage } from "./controller";
 import { useUi } from "./store";
@@ -14,7 +15,7 @@ function Stage() {
 }
 
 export function App() {
-  const { phase, connected, overlayHidden, sessionId, hubSetupOpen } = useUi();
+  const { phase, connected, overlayHidden, sessionId, hubSetupOpen, settingsOpen } = useUi();
   return (
     <>
       <TitleBar />
@@ -28,6 +29,7 @@ export function App() {
       {phase === "session" && <ChromeLayer hidden={overlayHidden} />}
       <Toast />
       {hubSetupOpen && <HubSetup />}
+      {settingsOpen && <Settings />}
       {!connected && phase !== "connecting" && <div className="offline">reconnecting…</div>}
     </>
   );

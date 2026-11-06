@@ -1,9 +1,12 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { ClaudeSettings } from "../../shared/settings";
+import { defaultSettings } from "../../shared/settings";
+import { SessionManager } from "../manager";
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import type { ProviderEvent } from "./types";
+import type { AgentProvider, ProviderEvent } from "./types";
 
 const mock = vi.hoisted(() => ({ query: vi.fn() }));
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({ query: mock.query }));
@@ -16,6 +19,90 @@ import { ClaudeProvider } from "./claude";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+});
+
+function startOptions(
+  settings: () => ClaudeSettings = () => ({}),
+  provider: AgentProvider = new ClaudeProvider(settings),
+): Options {
+  mock.query.mockReturnValue({
+    supportedCommands: async () => [],
+    close: vi.fn(),
+    async *[Symbol.asyncIterator]() {},
+  });
+  const run = provider.start({
+    config: { provider: "claude", cwd: os.tmpdir(), model: "", effort: "" },
+    systemPrompt: "Canvas instructions",
+    tools: { defs: [], run: async () => ({ text: "" }) },
+    emit: () => {},
+  });
+  run.close();
+  return mock.query.mock.lastCall![0].options;
+}
+
+test("Claude leaves permission mode and sandbox settings to the CLI by default", () => {
+  vi.stubEnv("CLAY_PERMISSION_MODE", undefined);
+  vi.stubEnv("CLAY_SANDBOX", undefined);
+  const options = startOptions();
+  expect(options).not.toHaveProperty("permissionMode");
+  expect(options).not.toHaveProperty("sandbox");
+  expect(options).not.toHaveProperty("allowDangerouslySkipPermissions");
+  expect(options.settingSources).toEqual(["user", "project", "local"]);
+});
+
+test("Claude reads the current independent overrides on every run", () => {
+  vi.stubEnv("CLAY_PERMISSION_MODE", undefined);
+  vi.stubEnv("CLAY_SANDBOX", undefined);
+  let settings: ClaudeSettings = { permissionMode: "auto" };
+  const read = () => settings;
+  expect(startOptions(read).permissionMode).toBe("auto");
+  expect(startOptions(read)).not.toHaveProperty("sandbox");
+  settings = { sandbox: false };
+  expect(startOptions(read).sandbox).toEqual({ enabled: false });
+  expect(startOptions(read)).not.toHaveProperty("permissionMode");
+  settings = { permissionMode: "bypassPermissions", sandbox: true };
+  expect(startOptions(read)).toMatchObject({
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    sandbox: { enabled: true },
+  });
+});
+
+test("explicit Clay settings take precedence over environment overrides", () => {
+  vi.stubEnv("CLAY_PERMISSION_MODE", "acceptEdits");
+  vi.stubEnv("CLAY_SANDBOX", "0");
+  expect(startOptions()).toMatchObject({ permissionMode: "acceptEdits", sandbox: { enabled: false } });
+  expect(startOptions(() => ({ permissionMode: "auto", sandbox: true }))).toMatchObject({
+    permissionMode: "auto",
+    sandbox: { enabled: true },
+  });
+});
+
+test("saved Clay overrides reach subsequent Claude runs without changing an existing run", () => {
+  vi.stubEnv("CLAY_PERMISSION_MODE", undefined);
+  vi.stubEnv("CLAY_SANDBOX", undefined);
+  const directory = mkdtempSync(path.join(os.tmpdir(), "clay-provider-settings-"));
+  const manager = new SessionManager(directory);
+  const client = { id: "test", kind: "web" as const, send: vi.fn() };
+  try {
+    const original = startOptions(undefined, manager.providers.claude);
+    const settings = defaultSettings();
+    settings.providers.claude = { permissionMode: "auto", sandbox: false };
+    expect(manager.handleSettings(client, { t: "settings.set", settings })).toBe(true);
+    expect(client.send).toHaveBeenLastCalledWith({ t: "settings", settings, saved: true });
+    expect(startOptions(undefined, manager.providers.claude)).toMatchObject({
+      permissionMode: "auto",
+      sandbox: { enabled: false },
+    });
+    expect(original).not.toHaveProperty("permissionMode");
+    expect(original).not.toHaveProperty("sandbox");
+    expect(manager.handleSettings(client, { t: "settings.get" })).toBe(true);
+    expect(client.send).toHaveBeenLastCalledWith({ t: "settings", settings });
+  } finally {
+    manager.shutdown();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("Claude discovers SDK commands and sends image blocks plus readable workspace files", async () => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Effort, PromptContent, ProviderInfo } from "../../shared/protocol";
+import { defaultSelection } from "../../shared/settings";
 import { fileOpen, send } from "../controller";
 import { useUi } from "../store";
 import { transport } from "../transport";
@@ -247,17 +248,11 @@ function CwdPicker({ cwd, setCwd }: { cwd: string; setCwd: (v: string) => void }
 const effortLabel = (p: ProviderInfo | undefined, e: Effort) =>
   p?.effortLabels?.[e] ?? EFFORT_LABEL[e] ?? e.charAt(0).toUpperCase() + e.slice(1);
 
-/** Claude unless it's unavailable and another agent is ready. */
-function defaultProvider(providers: ProviderInfo[]) {
-  const claude = providers.find((p) => p.id === "claude");
-  if (!claude || (!claude.enabled && !claude.pending)) return providers.find((p) => p.enabled)?.id ?? "claude";
-  return "claude";
-}
-
 export function StartCard() {
-  const { providers, welcomed, defaultCwd, error, connected } = useUi();
+  const { providers, welcomed, defaultCwd, error, connected, settings } = useUi();
+  const defaults = defaultSelection(providers, settings?.general);
   const [chosen, setChosen] = useState<string>();
-  const providerId = chosen ?? defaultProvider(providers);
+  const providerId = chosen ?? defaults.providerId;
   const provider = providers.find((p) => p.id === providerId);
   const agent = provider?.label ?? "Claude";
   const [model, setModel] = useState<string>();
@@ -271,10 +266,13 @@ export function StartCard() {
 
   // Nothing chosen yet means the CLI's own defaults, shown as the concrete model and effort they resolve to.
   const models = provider?.models ?? [];
-  const modelId = model ?? provider?.defaultModel ?? models[0]?.id ?? "";
+  const modelId =
+    model ?? (providerId === defaults.providerId ? defaults.modelId : (provider?.defaultModel ?? models[0]?.id ?? ""));
   const info = models.find((m) => m.id === modelId);
   const efforts = info?.efforts ?? [];
-  const shownEffort = effort ?? info?.defaultEffort ?? (efforts.includes("high") ? "high" : efforts[0]);
+  const selectedEffort =
+    effort ?? (providerId === defaults.providerId && modelId === defaults.modelId ? defaults.effort : "");
+  const shownEffort = selectedEffort || info?.defaultEffort || (efforts.includes("high") ? "high" : efforts[0]);
   const loading = !welcomed || Boolean(provider?.pending);
 
   const ready = Boolean(provider?.enabled) && connected;
@@ -284,7 +282,7 @@ export function StartCard() {
     useUi.setState({ error: undefined });
     send({
       t: "session.start",
-      config: { provider: providerId, model: modelId, effort: effort ?? "", cwd },
+      config: { provider: providerId, model: modelId, effort: selectedEffort, cwd },
       prompt: text,
       ...content,
     });

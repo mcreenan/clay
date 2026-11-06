@@ -11,6 +11,8 @@
  * See docs/PROTOCOL.md for the prose version.
  */
 
+import type { AppSettings } from "./settings";
+
 export const PROTOCOL_VERSION = 2;
 export const FRAME_CHANNEL = "clay";
 
@@ -391,6 +393,8 @@ export interface FrameResult {
 }
 
 export type ClientMsg =
+  | { t: "settings.get" }
+  | { t: "settings.set"; settings: AppSettings }
   | { t: "hello"; v: number; sessionId?: string }
   | ({ t: "session.start"; config: SessionConfig; prompt: string } & PromptContent)
   /** On a hub, `to` names the agent that should act on it; without it the message is for the room only. */
@@ -438,6 +442,8 @@ export type ClientMsg =
   | { t: "revisions.restore"; commit: string };
 
 export type ServerMsg =
+  | { t: "settings"; settings: AppSettings; saved?: boolean }
+  | { t: "settings.error"; message: string }
   | { t: "input.info"; requestId: string; capabilities?: InputCapabilities; error?: string }
   | { t: "input.update"; capabilities: InputCapabilities; provider: ProviderId; agent?: string }
   /**
@@ -504,6 +510,7 @@ export type ToFrameMsg =
 
 /** Titlebar/menu actions. Electron main sends them to the focused window for native menu items and shortcuts. */
 export type UiCommand =
+  | "settings"
   | "hubSetup"
   | "overlay"
   | "history"

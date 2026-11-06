@@ -123,11 +123,15 @@ When you open a file:
 
 ### What Claude can do
 
-In its working directory, Claude can read and edit files and run shell commands without asking. Commands run in Claude Code's sandbox, which allows writes only inside the working directory and allows network access. Canvas pages are sandboxed from the app but can reach the network.
+Claude uses your Claude Code permission mode and sandbox settings by default. Clay does not change your Claude config files. In auto mode, Claude checks tool calls and can refuse unsafe operations. Clay has no approval prompt interface, so a tool call that needs manual approval is denied. Canvas pages are sandboxed from the app but can reach the network.
 
-Codex works the same way in its `workspace-write` sandbox with network access, and never stops to ask for approval: anything outside the sandbox is declined.
+Codex uses its `workspace-write` sandbox with network access and never asks for approval. It declines operations outside that sandbox.
 
 ACP agents apply their own settings, and Clay answers their permission requests because there is no approval UI yet. It allows the canvas tools, reading, searching and fetching, and edits to files inside the working directory. It refuses everything else, including shell commands the agent asks about, and says so in the history. Set `CLAY_ACP_PERMISSIONS=all` to allow everything.
+
+Open **Settings** from the titlebar button or the File menu. In **General**, choose the default provider, model, and effort for new local sessions. In **Providers → Claude**, you can override the permission mode and enable or disable the command sandbox. Both controls default to **Use Claude settings**. Explicit Clay settings take precedence over environment overrides. Otherwise, the environment overrides take precedence over Claude settings.
+
+Clay saves these choices in `settings.json` in its data directory. Claude overrides apply to new agent runs, including saved conversations started after a Clay restart. They do not change an active run. Restart Clay to apply them to an existing run. In the desktop app, settings control agents on your machine, including agents connected to a hub. A browser connected to a hub cannot change agent-host settings.
 
 The canvas tools reach Codex and ACP agents through an MCP server that Clay serves on a random loopback port, under a secret path for each session.
 
@@ -170,21 +174,21 @@ The token is shared and names aren't verified, so use a hub only with people you
 
 ### Settings
 
-| Variable                           | Purpose                                                                                                      |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `CLAY_DEFAULT_CWD`                 | Default working directory (a new temporary directory for each session)                                       |
-| `CLAY_DATA_DIR`                    | Where sessions are stored                                                                                    |
-| `CLAY_CLAUDE_EXECUTABLE`           | Path to `claude`, if it isn't on `PATH`                                                                      |
-| `CLAY_CODEX_EXECUTABLE`            | Path to `codex`, if it isn't on `PATH`                                                                       |
-| `CLAY_ACP_AGENTS`                  | Extra ACP agents, as JSON or a file path (see [Other agents](#other-agents))                                 |
-| `CLAY_ACP_PERMISSIONS`             | `all` lets ACP agents do anything they ask permission for                                                    |
-| `CLAY_PERMISSION_MODE`             | Claude permission mode (default `acceptEdits`)                                                               |
-| `CLAY_SANDBOX`                     | `0` turns off the command sandbox. Claude's commands then need pre-approval, and Codex runs with full access |
-| `CLAY_SESSION` or `--session=<id>` | Reopen a specific session                                                                                    |
-| `HOST`, `PORT`                     | Web server address (`0.0.0.0`, `5317`; the hub defaults to `5318`)                                           |
-| `CLAY_HUB_DIR`                     | Hub: where projects and their git repositories are kept (`hub-data/`)                                        |
-| `CLAY_HUB_TOKEN`                   | Hub: the access token (generated once and kept in the hub's directory if unset)                              |
-| `CLAY_HUB_NAME`                    | Hub: the name people see when joining (the host name)                                                        |
+| Variable                           | Purpose                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `CLAY_DEFAULT_CWD`                 | Default working directory (a new temporary directory for each session)                                                   |
+| `CLAY_DATA_DIR`                    | Where sessions are stored                                                                                                |
+| `CLAY_CLAUDE_EXECUTABLE`           | Path to `claude`, if it isn't on `PATH`                                                                                  |
+| `CLAY_CODEX_EXECUTABLE`            | Path to `codex`, if it isn't on `PATH`                                                                                   |
+| `CLAY_ACP_AGENTS`                  | Extra ACP agents, as JSON or a file path (see [Other agents](#other-agents))                                             |
+| `CLAY_ACP_PERMISSIONS`             | `all` lets ACP agents do anything they ask permission for                                                                |
+| `CLAY_PERMISSION_MODE`             | Explicit Claude permission mode override. Unset: use Claude settings                                                     |
+| `CLAY_SANDBOX`                     | Claude sandbox override: `1` enables it, `0` disables it. Unset: use Claude settings. For Codex, `0` enables full access |
+| `CLAY_SESSION` or `--session=<id>` | Reopen a specific session                                                                                                |
+| `HOST`, `PORT`                     | Web server address (`0.0.0.0`, `5317`; the hub defaults to `5318`)                                                       |
+| `CLAY_HUB_DIR`                     | Hub: where projects and their git repositories are kept (`hub-data/`)                                                    |
+| `CLAY_HUB_TOKEN`                   | Hub: the access token (generated once and kept in the hub's directory if unset)                                          |
+| `CLAY_HUB_NAME`                    | Hub: the name people see when joining (the host name)                                                                    |
 
 ## Development
 

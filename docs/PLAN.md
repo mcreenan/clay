@@ -28,7 +28,7 @@ The canvas is a **by-product of the session**. It is persisted with the session 
 - `includePartialMessages` streams text and thinking deltas into the history.
 - **Models and efforts come from the host**: `supportedModels()` and `accountInfo()` at discovery. Nothing is hard-coded. Discovery is retried after 30 s if it fails.
 - Canvas tools come from `createSdkMcpServer` (in-process, `alwaysLoad`). `Read/Glob/Grep/WebFetch/WebSearch/TodoWrite` and the canvas tools are pre-approved.
-  - **Edits and commands in the working directory are allowed by default:** `permissionMode: "acceptEdits"` auto-accepts file edits in the cwd, and Bash runs in Claude Code's sandbox (`autoAllowBashIfSandboxed`, `allowUnsandboxedCommands: false`), so commands are auto-approved but can only write inside the cwd. Network is allowed.
+  - **Claude settings are inherited by default:** the SDK loads the user's, project's, and local Claude settings. Clay does not force a permission mode or command sandbox. Settings can override these two options for Claude. Explicit environment overrides still apply when no Clay override is selected. There is no approval interface, so requests that need manual approval are denied.
   - Anything outside that is denied (there is no approvals UI yet). `CLAY_PERMISSION_MODE` and `CLAY_SANDBOX=0` override it.
 
 ## 2. Tools: primitives that update in place

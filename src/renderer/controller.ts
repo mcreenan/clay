@@ -45,6 +45,11 @@ export const setHistoryMode = (mode: "full" | "mini") =>
   send({ t: "chrome.set", component: "history", props: { mode } });
 
 export function uiCommand(cmd: UiCommand) {
+  if (cmd === "settings") {
+    useUi.setState({ settingsOpen: true, settingsError: undefined });
+    if (useUi.getState().settings) send({ t: "settings.get" });
+    return;
+  }
   if (cmd === "hubSetup") return useUi.setState({ hubSetupOpen: true });
   if (cmd === "overlay") return toggleOverlay();
   if (useUi.getState().phase !== "session") return;
@@ -249,7 +254,10 @@ export function startController() {
     "keydown",
     (e) => {
       if (!(e.ctrlKey || e.metaKey)) return;
-      if (!e.shiftKey && !e.altKey && e.code === "Backslash") {
+      if (!e.shiftKey && !e.altKey && e.key === ",") {
+        e.preventDefault();
+        uiCommand("settings");
+      } else if (!e.shiftKey && !e.altKey && e.code === "Backslash") {
         e.preventDefault();
         toggleOverlay();
       } else if (!e.altKey && (e.key.toLowerCase() === "s" || (e.key.toLowerCase() === "o" && !e.shiftKey))) {

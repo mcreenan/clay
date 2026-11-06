@@ -64,6 +64,7 @@ function useMenus(): Menu[] {
         { label: "Rename…", run: cmd("rename"), disabled: !inSession, testid: "rename" },
         "-",
         { label: "Run a hub server…", run: cmd("hubSetup"), testid: "menu-hub-setup" },
+        { label: "Settings…", key: `${mod},`, run: cmd("settings"), testid: "menu-settings" },
       ],
     },
     {
@@ -606,6 +607,26 @@ export function TitleBar() {
       {inSession && <SessionControls />}
       {inSession && onHub && <HubNav />}
       <Title />
+      <button
+        type="button"
+        className="icon"
+        aria-label="Settings"
+        title="Settings"
+        onClick={() => uiCommand("settings")}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <path d="m9 3-.6 2.4-2 .9-2.2-.7L1.8 9.8l1.8 1.7v2.1l-1.8 1.7 2.4 4.2 2.2-.7 2 .9.6 2.3h5l.6-2.3 2-.9 2.2.7 2.4-4.2-1.8-1.7v-2.1l1.8-1.7-2.4-4.2-2.2.7-2-.9L14 3Z" />
+          <circle cx="11.5" cy="12.5" r="3.5" />
+        </svg>
+      </button>
       {inSession && onHub && <HubControls />}
       {inSession && <Status />}
       {inSession && <OverlayControls />}
