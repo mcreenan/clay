@@ -223,7 +223,8 @@ export function layoutChrome(
   const hx = a.endsWith("left") || a === "left" ? "l" : a.endsWith("right") || a === "right" ? "r" : "c";
   const vy = a.startsWith("top") ? "t" : a.startsWith("bottom") ? "b" : "c";
   let x = hx === "l" ? CHROME_MARGIN : hx === "r" ? vw - width - CHROME_MARGIN : (vw - width) / 2;
-  let y = vy === "t" ? CHROME_MARGIN : vy === "b" ? vh - height - CHROME_MARGIN : (vh - height) / 2;
+  const bottomMargin = component === "prompt" ? 0 : CHROME_MARGIN;
+  let y = vy === "t" ? CHROME_MARGIN : vy === "b" ? vh - height - bottomMargin : (vh - height) / 2;
   x += p.x;
   y += p.y;
   const slackX = width * (1 - CHROME_LIMITS.onscreen);

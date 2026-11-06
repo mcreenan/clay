@@ -814,6 +814,16 @@ button.pill:hover:not(:disabled),
   padding-bottom: 6px;
   transform: translateY(calc(0px - var(--prompt-meta-height)));
 }
+.chrome-prompt.docked .prompt-bezel {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow:
+    inset 0 1px 0 #ffffff17,
+    inset 1px 0 0 #ffffff08,
+    inset -1px 0 0 #ffffff08,
+    0 0 0 1px #000000a6,
+    var(--shadow);
+}
 .chrome-prompt:has(.well :focus, .pfoot :focus) {
   --prompt-meta-height: 30px;
 }

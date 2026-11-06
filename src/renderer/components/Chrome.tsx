@@ -152,6 +152,7 @@ export function PromptBar() {
     return () => ro.disconnect();
   }, []);
   const rect = layoutChrome("prompt", applied, w, h, height);
+  const docked = applied.anchor.startsWith("bottom") && applied.y === 0;
   const busy = status === "thinking" || status === "tool";
   const hints: [string, string][] = busy
     ? [
@@ -164,9 +165,9 @@ export function PromptBar() {
       ];
   return (
     <div
-      className="chrome-prompt"
+      className={`chrome-prompt${docked ? " docked" : ""}`}
       // Leave room above top-anchored prompts for both rows, even while hidden.
-      style={chromeStyle(applied, { ...rect, y: Math.max(rect.y, 84) })}
+      style={chromeStyle(applied, { ...rect, y: docked ? rect.y : Math.max(rect.y, 84) })}
     >
       <AgentActivity />
       <PromptComposer
