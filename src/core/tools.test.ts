@@ -60,7 +60,7 @@ test("session interruption and owner disconnect end pending input tool calls", a
 test("selection_read returns the canvas frame's selection without changing resources", async () => {
   const { session, client, tools } = setup();
   const selection = {
-    kind: "element",
+    kind: "text",
     selector: "#status",
     text: "Ready",
     resourceHints: [],

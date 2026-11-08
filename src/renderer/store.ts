@@ -8,7 +8,6 @@ import {
   type ArtifactInfo,
   type CanvasState,
   type CanvasStats,
-  type CanvasSelection,
   type ChromeState,
   type HistoryItem,
   type InputCapabilities,
@@ -19,7 +18,6 @@ import {
   type ServerMsg,
   type SessionConfig,
   type SessionTitle,
-  type SelectionMode,
   type UserInputRequest,
   type UndoInfo,
 } from "../shared/protocol";
@@ -31,8 +29,6 @@ export interface UiState {
   settingsError?: string;
   inputUpdate?: { capabilities: InputCapabilities; provider: string; agent?: string };
   pendingInputs: UserInputRequest[];
-  selectionMode: SelectionMode | null;
-  selection: CanvasSelection | null;
   connected: boolean;
   welcomed: boolean;
   providers: ProviderInfo[];
@@ -84,8 +80,6 @@ export const useUi = create<UiState>(() => ({
   settingsOpen: false,
   settingsSaving: false,
   pendingInputs: [],
-  selectionMode: null,
-  selection: null,
   connected: false,
   welcomed: false,
   providers: [],
@@ -109,8 +103,6 @@ export const useUi = create<UiState>(() => ({
 /** Session state reset when leaving an artifact (hub). */
 export const noSession = {
   pendingInputs: [],
-  selectionMode: null,
-  selection: null,
   sessionId: undefined,
   config: undefined,
   status: "idle",
@@ -202,7 +194,6 @@ export function reduce(msg: ServerMsg) {
         file: s.file,
         title: s.title,
         pendingInputs: s.pendingInputs ?? [],
-        ...(useUi.getState().sessionId !== s.id && { selectionMode: null, selection: null }),
         error: undefined,
       });
     }

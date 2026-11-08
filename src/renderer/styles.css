@@ -44,8 +44,7 @@ textarea {
   background: transparent;
 }
 
-/* Host-owned selection and agent input controls. */
-.selection-tools,
+/* Host-owned agent input controls. */
 .user-input-panel {
   position: fixed;
   z-index: 2147483001;
@@ -57,32 +56,11 @@ textarea {
   padding: 12px;
   max-width: calc(100vw - 24px);
 }
-.selection-tools {
-  top: calc(var(--tb) + 12px);
-  left: 12px;
-}
-.selection-tools p {
-  font-size: 12px;
-  margin: 8px 0 0;
-  color: #b9b9c5;
-}
 .interaction-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-.selection-tools .btn[aria-pressed="true"] {
-  background: #7c9cff;
-  color: #0b0d14;
-  border-color: #7c9cff;
-}
-.selection-outline {
-  position: fixed;
-  z-index: 2147483000;
-  pointer-events: none;
-  border: 2px solid #7c9cff;
-  background: #7c9cff12;
 }
 .user-input-panel {
   top: calc(var(--tb) + 12px);
@@ -145,7 +123,6 @@ textarea {
   padding: 6px 8px;
   caret-color: #7c9cff;
 }
-.selection-tools button:focus-visible,
 .user-input-panel :is(button, input):focus-visible {
   outline: 2px solid #7c9cff;
   outline-offset: 3px;
@@ -156,16 +133,6 @@ textarea {
 .input-field input::selection {
   background: #7c9cff;
   color: #0b0d14;
-}
-@media (max-width: 700px) {
-  .selection-tools {
-    right: 12px;
-    width: fit-content;
-  }
-  .user-input-panel {
-    top: calc(var(--tb) + 142px);
-    max-height: calc(100dvh - var(--tb) - 154px);
-  }
 }
 
 .btn {

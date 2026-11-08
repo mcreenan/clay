@@ -846,11 +846,8 @@ async function applyModules(resources, force, errors) {
 
 // ======================================================================== user selection
 
-// Keep references and coordinates only. All outlines and controls live in the host.
-let selectionMode = null;
+// Keep a text selection available when focus moves to the host prompt.
 let selected = null;
-let selectionDrag = null;
-let suppressSelectionClick = false;
 const SELECTION_TEXT_LIMIT = 8000;
 const boxOf = (rect) => ({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
 const selectionElement = (node) => (node?.nodeType === 1 ? node : node?.parentElement);
@@ -918,14 +915,11 @@ function selectionResources(el) {
 }
 
 function captureTextSelection() {
-  if (selectionMode === "element" || selectionMode === "region") return false;
   const control = document.activeElement;
   if (
     ((control instanceof HTMLInputElement && ["text", "search", "url", "tel", "email"].includes(control.type)) ||
       control instanceof HTMLTextAreaElement) &&
     selectable(control) &&
-    selected?.kind !== "element" &&
-    selected?.kind !== "region" &&
     control.selectionEnd > control.selectionStart
   ) {
     selected = { kind: "text", el: control, control: true, start: control.selectionStart, end: control.selectionEnd };
@@ -941,7 +935,7 @@ function captureTextSelection() {
 }
 
 function readSelection() {
-  if (!selected || selected.kind === "text") captureTextSelection();
+  captureTextSelection();
   if (!selected || !selectable(selected.el)) {
     selected = null;
     return null;
@@ -961,31 +955,6 @@ function readSelection() {
     box = boxOf(selected.range.getBoundingClientRect());
     text = selected.range.toString();
   } else if (selected.control) text = el.value.slice(selected.start, selected.end);
-  else if (kind === "region") {
-    box = { ...selected.box, x: selected.box.x - scrollX, y: selected.box.y - scrollY };
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const parts = [];
-    let length = 0;
-    while (length < SELECTION_TEXT_LIMIT && walker.nextNode()) {
-      const node = walker.currentNode;
-      if (!node.textContent.trim() || node.parentElement.closest("script, style, [data-ac-internal]")) continue;
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const rect = range.getBoundingClientRect();
-      if (
-        rect.width &&
-        rect.height &&
-        rect.right >= box.x &&
-        rect.left <= box.x + box.width &&
-        rect.bottom >= box.y &&
-        rect.top <= box.y + box.height
-      ) {
-        parts.push(node.textContent);
-        length += node.textContent.length;
-      }
-    }
-    text = parts.join(" ");
-  }
   return {
     kind,
     selector: selectionSelector(el),
@@ -996,155 +965,10 @@ function readSelection() {
   };
 }
 
-function publishSelection() {
-  post({ type: "selection.state", mode: selectionMode, selection: readSelection() });
-}
-
-function setSelectionMode(mode, clear = false) {
-  selectionMode = ["element", "text", "region"].includes(mode) ? mode : null;
-  if (selectionDrag?.el.hasPointerCapture?.(selectionDrag.pointerId))
-    selectionDrag.el.releasePointerCapture(selectionDrag.pointerId);
-  selectionDrag = null;
-  if (selectionMode === "text") selected = null;
-  if (clear || selectionMode === "element" || selectionMode === "region") {
-    selected = null;
-    window.getSelection()?.removeAllRanges();
-  }
-  publishSelection();
-}
-
-orig.add.call(
-  window,
-  "pointerdown",
-  (event) => {
-    suppressSelectionClick = Boolean(selectionMode);
-    if (!selectionMode || event.button !== 0 || !selectable(event.target)) return;
-    // Text uses the browser's native drag selection. Other modes suppress canvas actions.
-    event.stopImmediatePropagation();
-    if (selectionMode === "text") return;
-    event.preventDefault();
-    window.getSelection()?.removeAllRanges();
-    if (selectionMode === "element") {
-      selected = { kind: "element", el: event.target };
-      selectionMode = null;
-      publishSelection();
-    } else {
-      selectionDrag = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, el: event.target };
-      event.target.setPointerCapture?.(event.pointerId);
-    }
-  },
-  true,
-);
-
-function updateSelectionRegion(event) {
-  if (!selectionDrag || selectionDrag.pointerId !== event.pointerId) return;
-  const x = Math.max(0, Math.min(innerWidth, event.clientX));
-  const y = Math.max(0, Math.min(innerHeight, event.clientY));
-  selected = {
-    kind: "region",
-    el: selectionDrag.el,
-    box: {
-      x: Math.min(selectionDrag.x, x) + scrollX,
-      y: Math.min(selectionDrag.y, y) + scrollY,
-      width: Math.abs(x - selectionDrag.x),
-      height: Math.abs(y - selectionDrag.y),
-    },
-  };
-  publishSelection();
-}
-orig.add.call(
-  window,
-  "pointermove",
-  (event) => {
-    if (!selectionDrag) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    updateSelectionRegion(event);
-  },
-  true,
-);
-orig.add.call(
-  window,
-  "pointerup",
-  (event) => {
-    if (!selectionDrag || selectionDrag.pointerId !== event.pointerId) {
-      if (suppressSelectionClick) {
-        if (selectionMode !== "text") event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-      return;
-    }
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    updateSelectionRegion(event);
-    selectionDrag.el.releasePointerCapture?.(event.pointerId);
-    selectionDrag = null;
-    // Keep mode active through click so a selected link or button cannot fire.
-    orig.setTimeout(() => {
-      selectionMode = null;
-      publishSelection();
-    }, 0);
-  },
-  true,
-);
-orig.add.call(
-  window,
-  "pointercancel",
-  () => {
-    if (!selectionDrag) return;
-    selectionDrag = null;
-    selected = null;
-    publishSelection();
-  },
-  true,
-);
-orig.add.call(
-  window,
-  "click",
-  (event) => {
-    if (!selectionMode && !suppressSelectionClick) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    suppressSelectionClick = false;
-  },
-  true,
-);
 orig.add.call(document, "selectionchange", () => {
-  const wasText = selected?.kind === "text";
-  if (!captureTextSelection() && (selectionMode === "text" || (wasText && document.hasFocus()))) selected = null;
-  if (wasText || selected?.kind === "text" || selectionMode === "text") publishSelection();
+  if (!captureTextSelection() && document.hasFocus()) selected = null;
 });
-orig.add.call(
-  document,
-  "select",
-  () => {
-    if (captureTextSelection()) publishSelection();
-  },
-  true,
-);
-orig.add.call(
-  window,
-  "keydown",
-  (event) => {
-    if (event.key === "Escape" && selectionMode) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      setSelectionMode(null);
-    }
-  },
-  true,
-);
-orig.add.call(
-  window,
-  "scroll",
-  () => {
-    if (selected) publishSelection();
-  },
-  true,
-);
-orig.add.call(window, "resize", () => {
-  if (selected) publishSelection();
-});
+orig.add.call(document, "select", captureTextSelection, true);
 
 // ======================================================================== applying canvas state
 
@@ -1172,7 +996,6 @@ async function applyState(c) {
   const kindOf = (n) => (res[n] ?? prev[n]).kind;
   const dirty = [...all].filter(changed);
   const modeChanged = c.mode !== rt.mode || !started;
-  if (selected?.kind === "region" && dirty.length) selected = null;
   try {
     const assetsChanged = applyAssets(res, prev);
     if (assetsChanged || dirty.some((n) => kindOf(n) === "css")) applyCss(res, prev, assetsChanged);
@@ -1198,7 +1021,6 @@ async function applyState(c) {
   flushConsole();
   const warnings = collectStats().warnings;
   post({ type: "applied", rev: c.rev, errors: [...new Set(errors)].slice(0, 20), warnings });
-  publishSelection();
 }
 
 // ======================================================================== requests: eval / view / dom / stats
@@ -1435,8 +1257,6 @@ orig.add.call(window, "message", async (ev) => {
   const m = ev.data;
   if (!m || m.ch !== CH || m.v !== V) return;
   switch (m.type) {
-    case "selection.mode":
-      return setSelectionMode(m.mode, m.clear);
     case "init":
       Object.keys(store).forEach((k) => delete store[k]);
       Object.assign(store, m.data ?? {});

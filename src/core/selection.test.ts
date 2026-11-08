@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 import { parseHTML } from "linkedom";
 import { expect, test } from "vite-plus/test";
-import type { CanvasSelection, FrameRequest, FrameResult, FromFrameMsg, SelectionMode } from "../shared/protocol";
+import type { CanvasSelection, FrameRequest, FrameResult, FromFrameMsg } from "../shared/protocol";
 
 const source = readFileSync(new URL("../canvas/runtime.js", import.meta.url), "utf8");
 // Execute the shipped selection code, without booting graphics or a browser.
@@ -87,13 +87,9 @@ function fixture() {
       setTimeout: (callback: () => void) => callback(),
     },
   });
-  runInContext(
-    `${selectionSource}\n${requestSource}\nglobalThis.api = { readSelection, setSelectionMode, handleRequest };`,
-    context,
-  );
+  runInContext(`${selectionSource}\n${requestSource}\nglobalThis.api = { readSelection, handleRequest };`, context);
   const api = context.api as {
     readSelection(): CanvasSelection | null;
-    setSelectionMode(mode: SelectionMode | null, clear?: boolean): void;
     handleRequest(request: FrameRequest): Promise<FrameResult>;
   };
   const dispatch = (type: string, props: Record<string, unknown> = {}) => {
@@ -115,6 +111,7 @@ function fixture() {
     document,
     messages,
     dispatch,
+    deselectText: () => native.removeAllRanges(),
     selectText: () => {
       nativeRange = textRange();
     },
@@ -126,62 +123,13 @@ test("selection requests return JSON null until the user selects", async () => {
   await expect(api.handleRequest({ kind: "selection" })).resolves.toEqual({ ok: true, value: "null" });
 });
 
-test("element selection returns a unique selector, bounds, text, and resource hints without changing markup", async () => {
-  const { api, document, dispatch } = fixture();
-  const before = document.documentElement.outerHTML;
-  const el = document.querySelectorAll("p")[1];
-  api.setSelectionMode("element");
-  expect(dispatch("pointerdown", { target: el })).toBe(true);
-  expect(dispatch("click", { target: el })).toBe(true);
-  const result = await api.handleRequest({ kind: "selection" });
-  const selected = JSON.parse(result.value!) as CanvasSelection;
-  expect(selected).toMatchObject({
-    kind: "element",
-    text: "Second ",
-    box: { x: 20, y: 30, width: 140, height: 60 },
-    rev: 7,
-  });
-  expect(document.querySelectorAll(selected.selector)).toHaveLength(1);
-  expect(document.querySelector(selected.selector)).toBe(el);
-  expect(selected.resourceHints.map((hint) => hint.name)).toEqual(["index.html", "photo.png", "site.css"]);
-  expect(document.documentElement.outerHTML).toBe(before);
-  el.remove();
-  expect(api.readSelection()).toBeNull();
-});
-
-test("module hints identify generated elements and clearing removes the current selection", () => {
-  const { api, document, dispatch } = fixture();
-  api.setSelectionMode("element");
-  dispatch("pointerdown", { target: document.querySelector("button") });
-  expect(api.readSelection()?.resourceHints.map((hint) => hint.name)).toEqual(["chart.js", "site.css"]);
-  api.setSelectionMode(null, true);
-  expect(api.readSelection()).toBeNull();
-});
-
-test("native text selection survives leaving select mode and clears when the user deselects it", async () => {
-  const { api, selectText, dispatch } = fixture();
-  api.setSelectionMode("text");
+test("native text selection is readable and clears when the user deselects it", async () => {
+  const { api, selectText, deselectText, dispatch } = fixture();
   selectText();
   dispatch("selectionchange");
-  api.setSelectionMode(null);
   const result = await api.handleRequest({ kind: "selection" });
   expect(JSON.parse(result.value!)).toMatchObject({ kind: "text", text: "First", box: { x: 20, y: 30 } });
-  api.setSelectionMode(null, true);
+  deselectText();
   dispatch("selectionchange");
   expect(api.readSelection()).toBeNull();
-});
-
-test("region selection normalizes reverse drags and Escape ends select mode", () => {
-  const { api, document, dispatch, messages } = fixture();
-  const before = document.documentElement.outerHTML;
-  const el = document.querySelector("main")!;
-  api.setSelectionMode("region");
-  dispatch("pointerdown", { target: el, clientX: 180, clientY: 100 });
-  dispatch("pointermove", { target: el, clientX: 10, clientY: 20 });
-  dispatch("pointerup", { target: el, clientX: 10, clientY: 20 });
-  expect(api.readSelection()).toMatchObject({ kind: "region", box: { x: 10, y: 20, width: 170, height: 80 } });
-  expect(document.documentElement.outerHTML).toBe(before);
-  api.setSelectionMode("element");
-  expect(dispatch("keydown", { key: "Escape" })).toBe(true);
-  expect(messages.at(-1)).toMatchObject({ type: "selection.state", mode: null });
 });

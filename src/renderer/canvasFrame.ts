@@ -4,7 +4,6 @@ import {
   type ClientMsg,
   type FromFrameMsg,
   type ServerMsg,
-  type SelectionMode,
   type ToFrameMsg,
 } from "../shared/protocol";
 import { useUi } from "./store";
@@ -31,7 +30,6 @@ export class CanvasFrameHost {
   mount() {
     this.iframe?.remove();
     this.alive = false;
-    useUi.setState({ selectionMode: null, selection: null });
     const f = document.createElement("iframe");
     // allow-scripts without allow-same-origin: opaque origin, no access to the host,
     // its storage or its IPC bridge. Network access is allowed.
@@ -48,14 +46,6 @@ export class CanvasFrameHost {
     window.removeEventListener("message", this.onWindowMessage);
     this.iframe?.remove();
     this.alive = false;
-    useUi.setState({ selectionMode: null, selection: null });
-  }
-
-  setSelectionMode(mode: SelectionMode | null, clear = false) {
-    if (!this.alive) return;
-    useUi.setState({ selectionMode: mode, ...(clear && { selection: null }) });
-    this.post({ type: "selection.mode", mode, clear });
-    if (mode) this.iframe?.contentWindow?.focus();
   }
 
   private post(m: ToFrameMsg) {
@@ -95,8 +85,6 @@ export class CanvasFrameHost {
     if (!m || m.ch !== FRAME_CHANNEL || typeof m.type !== "string") return;
     const st = useUi.getState();
     switch (m.type) {
-      case "selection.state":
-        return useUi.setState({ selectionMode: m.mode, selection: m.selection });
       case "hello":
         this.alive = true;
         return this.post({ type: "init", canvas: st.canvas, data: st.data });

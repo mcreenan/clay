@@ -145,7 +145,7 @@ export const TOOL_DEFS: ToolDef[] = [
   {
     name: "selection_read",
     description:
-      "Read the user's current element, text, or region selection. Returns a CSS selector, viewport bounds, text, resource hints, and canvas revision, or null when nothing is selected. Use the host Select controls to select content.",
+      "Read the user's normal browser text selection. Returns its CSS selector, viewport bounds, text, resource hints, and canvas revision, or null when no text is selected.",
     shape: {},
   },
   {

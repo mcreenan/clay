@@ -1,4 +1,4 @@
-import type { InputCapabilities, PromptTarget, SelectionMode, UserInputReply } from "../shared/protocol";
+import type { InputCapabilities, PromptTarget, UserInputReply } from "../shared/protocol";
 import { effectiveProps } from "../shared/chrome";
 import { PROTOCOL_VERSION, type ClientMsg, type ServerMsg, type UiCommand } from "../shared/protocol";
 import { CanvasFrameHost } from "./canvasFrame";
@@ -10,11 +10,6 @@ import { saveHub, savedHub, transport, type HubLogin } from "./transport";
 let frame: CanvasFrameHost | undefined;
 
 export const send = (msg: ClientMsg) => transport.send(msg);
-
-export function setSelectionMode(mode: SelectionMode | null, clear = false) {
-  if (useUi.getState().phase !== "session") return;
-  frame?.setSelectionMode(mode, clear);
-}
 
 export function replyToInput(message: UserInputReply) {
   if (!useUi.getState().connected) return;
@@ -257,7 +252,6 @@ export function startController() {
     // The core's `welcome` says whether it is this machine or a hub; `hello` (or joining) follows it.
     () => useUi.setState({ connected: true }),
     () => {
-      frame?.setSelectionMode(null);
       // Pending prompts return in the next session snapshot, if they remain active.
       useUi.setState({ connected: false, pendingInputs: [] });
       for (const request of inputRequests.values()) {

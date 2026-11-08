@@ -345,7 +345,6 @@ export type UserInputReply = { t: "user_input.reply"; requestId: string } & (
   | { cancelled: true; answer?: never }
 );
 
-export type SelectionMode = "element" | "text" | "region";
 export interface SelectionBox {
   /** CSS pixels relative to the canvas viewport. */
   x: number;
@@ -355,7 +354,7 @@ export interface SelectionBox {
 }
 
 export interface CanvasSelection {
-  kind: SelectionMode;
+  kind: "text";
   selector: string;
   box: SelectionBox;
   text: string;
@@ -550,7 +549,6 @@ export type ServerMsg =
 // ---------------------------------------------------------------------------
 
 export type ToFrameMsg =
-  | { type: "selection.mode"; mode: SelectionMode | null; clear?: boolean }
   | { type: "init"; canvas: CanvasState; data: Record<string, unknown> }
   | { type: "state"; canvas: CanvasState }
   | { type: "data"; key: string; value?: unknown; deleted?: boolean }
@@ -571,7 +569,6 @@ export type UiCommand =
   | "rename";
 
 export type FromFrameMsg =
-  | { type: "selection.state"; mode: SelectionMode | null; selection: CanvasSelection | null }
   | { type: "hello" }
   | { type: "ready"; rev: number }
   | { type: "applied"; rev: number; errors: string[]; warnings: string[] }
