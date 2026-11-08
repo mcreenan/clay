@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promptContent } from "../shared/prompt";
@@ -35,6 +35,8 @@ import {
   type SessionSnapshot,
   type SessionTitle,
   type UndoInfo,
+  type UserInputReply,
+  type UserInputSpec,
 } from "../shared/protocol";
 import {
   artifactFilename,
@@ -45,6 +47,8 @@ import {
   type ParsedArtifact,
 } from "./artifact";
 import { applyPatch } from "./dom";
+import { exportCanvas, type ExportRenderer, type RenderFormat } from "./export";
+import { SessionInteractions } from "./interactions";
 import type { AgentProvider, AgentRun, ProviderEvent, TurnMeta } from "./providers/types";
 import { canvasSystemPrompt } from "./systemPrompt";
 import { buildToolSet, type ToolOutput } from "./tools";
@@ -56,6 +60,8 @@ const APPLY_WAIT_MS = 5000;
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_RESOURCE_BYTES = 8 * 1024 * 1024;
 const MAX_DATA_BYTES = 1024 * 1024;
+const CHECKPOINT_LIMIT = 20;
+const MAX_CHECKPOINT_BYTES = 32 * 1024 * 1024;
 
 /** A connected UI (browser tab over WebSocket, or an Electron window over IPC). */
 export interface Client {
@@ -64,6 +70,8 @@ export interface Client {
   send(msg: ServerMsg): void;
   /** Electron: capturePage of the window (chrome included, as the user sees it). */
   capture?: (maxWidth: number) => Promise<{ data: string; mimeType: string } | undefined>;
+  /** Desktop exports use a dedicated Electron window instead of external Chromium. */
+  renderExport?: ExportRenderer;
   /** Electron: OS-level metrics for the canvas frame's process. */
   processStats?: () => Promise<CanvasStats["process"] | undefined>;
   /** Hub: the person on the other end, once they have joined. */
@@ -88,6 +96,22 @@ export interface UndoEntry {
   res?: Record<string, Resource | null>;
   html?: string;
   chrome?: ChromeState;
+  data?: Record<string, unknown>;
+}
+
+interface CanvasCheckpoint {
+  name: string;
+  createdAt: number;
+  canvas: CanvasState;
+  data: Record<string, unknown>;
+  chrome: ChromeState;
+}
+
+export interface ResourceInput {
+  name: string;
+  content: string;
+  encoding?: "utf8" | "base64";
+  mime?: string;
 }
 
 export interface Persisted {
@@ -111,6 +135,7 @@ export interface Persisted {
   title?: SessionTitle;
   /** Opened from an artifact: the next run forks the imported Claude session instead of appending to it. */
   forkOnResume?: boolean;
+  checkpoints?: CanvasCheckpoint[];
 }
 
 export interface ArtifactSource {
@@ -139,6 +164,12 @@ function cleanTitle(t: unknown): SessionTitle | undefined {
 
 export class Session {
   readonly clients = new Set<Client>();
+  private interactions = new SessionInteractions((message) => {
+    if (message.t === "user_input.request" && message.request.ownerId) {
+      for (const client of this.clients)
+        if ((client.user?.id ?? client.id) === message.request.ownerId) client.send(message);
+    } else this.broadcast(message);
+  });
   private d: Persisted;
   private status: AgentStatus = "idle";
   private statusDetail?: string;
@@ -315,6 +346,43 @@ export class Session {
     return this.d.artifactPath ? clayArtifactPath(path.basename(this.d.artifactPath)) : artifactFilename(this.title);
   }
 
+  async exportCanvasToFile(options: {
+    format: "html" | RenderFormat;
+    filename?: string;
+    width?: number;
+    height?: number;
+    overwrite?: boolean;
+    modules?: string[];
+  }) {
+    const stem = this.artifactName.replace(/\.[^.]+$/, "");
+    let filename = options.filename ?? `exports/${stem}-${Date.now()}.${options.format}`;
+    if (!path.extname(filename)) filename += `.${options.format}`;
+    if (path.extname(filename).toLowerCase() !== `.${options.format}`)
+      throw new Error(`Export filename must end with .${options.format}.`);
+    const output = path.resolve(this.d.config.cwd, filename);
+    const relative = path.relative(path.resolve(this.d.config.cwd), output);
+    if (!relative || relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative))
+      throw new Error("Export filename must be inside the session workspace.");
+    if (!options.overwrite && existsSync(output)) throw new Error(`Export file already exists: ${output}`);
+    const viewer = this.viewerFor?.([...this.ready]) ?? this.primary ?? [...this.clients].at(-1);
+    const result = await exportCanvas(this.d.canvas, this.d.data, {
+      format: options.format,
+      title: this.title,
+      width: options.width,
+      height: options.height,
+      modules: options.modules,
+      render: viewer?.renderExport,
+    });
+    mkdirSync(path.dirname(output), { recursive: true });
+    writeFileSync(output, result, { flag: options.overwrite ? "w" : "wx" });
+    return {
+      path: output,
+      format: options.format,
+      bytes: Buffer.isBuffer(result) ? result.length : Buffer.byteLength(result),
+      note: "Exported saved resources and data. Setup runs again. Live DOM and ctx.state are not captured. External resources are blocked.",
+    };
+  }
+
   /** Package the session as a `.clay` artifact, with a screenshot of the window when a viewer is open. */
   async exportArtifact() {
     this.flush();
@@ -346,16 +414,18 @@ export class Session {
 
   attach(c: Client) {
     this.clients.add(c);
-    c.send({ t: "session.snapshot", session: this.toSnapshot() });
+    c.send({ t: "session.snapshot", session: this.toSnapshot(c) });
   }
 
   detach(c: Client) {
     this.clients.delete(c);
     this.ready.delete(c);
     if (this.primary === c) this.primary = [...this.ready].at(-1);
+    const ownerId = c.user?.id ?? c.id;
+    if (![...this.clients].some((other) => (other.user?.id ?? other.id) === ownerId)) this.interactions.disconnect(c);
   }
 
-  toSnapshot(): SessionSnapshot {
+  toSnapshot(client?: Client): SessionSnapshot {
     return {
       id: this.d.id,
       config: this.d.config,
@@ -369,6 +439,9 @@ export class Session {
       stats: this.stats,
       file: this.d.artifactPath ? path.basename(this.d.artifactPath) : undefined,
       title: this.d.title,
+      pendingInputs: this.interactions
+        .snapshot()
+        .filter((request) => !client || !request.ownerId || request.ownerId === (client.user?.id ?? client.id)),
     };
   }
 
@@ -425,10 +498,12 @@ export class Session {
   }
 
   async interrupt() {
+    this.interactions.cancelAll("The turn was interrupted.");
     await this.run?.interrupt().catch(() => {});
   }
 
   dispose() {
+    this.interactions.dispose();
     this.run?.close();
     this.run = undefined;
     this.flush();
@@ -521,6 +596,7 @@ export class Session {
         return;
       }
       case "turn-end":
+        this.interactions.cancelAll("The turn ended.");
         this.addItem({
           id: randomUUID(),
           ts: Date.now(),
@@ -540,6 +616,7 @@ export class Session {
         this.addItem({ id: randomUUID(), ts: Date.now(), kind: "notice", level: e.level, text: e.text, ...by });
         return;
       case "fatal":
+        this.interactions.cancelAll("The agent stopped.");
         this.addItem({ id: randomUUID(), ts: Date.now(), kind: "notice", level: "error", text: e.error });
         this.setStatus("error", e.error);
         this.run?.close();
@@ -565,8 +642,15 @@ export class Session {
   private capture(e: UndoEntry): UndoEntry {
     const out: UndoEntry = { label: e.label, ts: Date.now() };
     if (e.mode !== undefined) out.mode = this.d.canvas.mode;
-    if (e.res) out.res = Object.fromEntries(Object.keys(e.res).map((n) => [n, this.d.canvas.resources[n] ?? null]));
+    if (e.res)
+      out.res = Object.fromEntries(
+        Object.keys(e.res).map((n) => [
+          n,
+          Object.hasOwn(this.d.canvas.resources, n) ? this.d.canvas.resources[n] : null,
+        ]),
+      );
     if (e.chrome) out.chrome = structuredClone(this.d.chrome);
+    if (e.data) out.data = structuredClone(this.d.data);
     return out;
   }
 
@@ -575,7 +659,13 @@ export class Session {
       const rev = ++this.d.canvas.rev;
       if (e.mode !== undefined) this.d.canvas.mode = e.mode;
       for (const [n, r] of Object.entries(e.res ?? {})) {
-        if (r) this.d.canvas.resources[n] = { ...r, rev };
+        if (r)
+          Object.defineProperty(this.d.canvas.resources, n, {
+            value: { ...r, rev },
+            enumerable: true,
+            writable: true,
+            configurable: true,
+          });
         else delete this.d.canvas.resources[n];
       }
       this.broadcast({ t: "canvas.state", canvas: this.d.canvas });
@@ -583,6 +673,13 @@ export class Session {
     if (e.chrome) {
       this.d.chrome = structuredClone(e.chrome);
       this.broadcast({ t: "chrome.state", chrome: this.d.chrome });
+    }
+    if (e.data) {
+      for (const key of Object.keys(this.d.data))
+        if (!Object.hasOwn(e.data, key)) this.broadcast({ t: "data.changed", key, deleted: true, source: "agent" });
+      this.d.data = structuredClone(e.data);
+      for (const [key, value] of Object.entries(this.d.data))
+        this.broadcast({ t: "data.changed", key, value, source: "agent" });
     }
   }
 
@@ -605,6 +702,118 @@ export class Session {
   }
 
   // ================================================================ canvas resources
+
+  async present(options: { mode?: CanvasMode; resources: ResourceInput[]; replace?: boolean }) {
+    const mode = options.mode ?? this.d.canvas.mode;
+    if (!CANVAS_MODES.includes(mode)) throw new Error(`mode must be one of ${CANVAS_MODES.join("|")}`);
+    if (!Array.isArray(options.resources) || options.resources.length > 100)
+      throw new Error("Present requires an array of at most 100 resources.");
+    const resources = options.replace ? {} : { ...this.d.canvas.resources };
+    const names = new Set<string>();
+    // Build and validate everything before changing session state.
+    for (const input of options.resources) {
+      this.checkName(input.name);
+      if (names.has(input.name)) throw new Error(`Duplicate resource: ${input.name}`);
+      if (typeof input.content !== "string") throw new Error(`${input.name}: content must be a string`);
+      names.add(input.name);
+      Object.defineProperty(resources, input.name, {
+        value: this.makeResource(input.name, input.content, input),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    const touched = new Set([...names, ...(options.replace ? Object.keys(this.d.canvas.resources) : [])]);
+    const previous = Object.fromEntries(
+      [...touched].map((name) => [
+        name,
+        Object.hasOwn(this.d.canvas.resources, name) ? this.d.canvas.resources[name] : null,
+      ]),
+    );
+    this.pushUndo({ label: "present canvas", ts: Date.now(), mode: this.d.canvas.mode, res: previous });
+    const rev = this.d.canvas.rev + 1;
+    for (const name of names) resources[name].rev = rev;
+    this.d.canvas = { mode, rev, resources };
+    this.broadcast({ t: "canvas.state", canvas: this.d.canvas });
+    this.save();
+    return `Presented ${names.size} resources in ${mode} mode. ${this.formatReport(await this.awaitApplied(rev))}`;
+  }
+
+  async importResource(file: string, name?: string, options: { encoding?: "utf8" | "base64"; mime?: string } = {}) {
+    const root = realpathSync(this.d.config.cwd);
+    const source = realpathSync(path.resolve(root, file));
+    const relative = path.relative(root, source);
+    if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
+      throw new Error("Import source must be a file inside the session workspace.");
+    const target = name ?? relative.split(path.sep).join("/");
+    this.checkName(target);
+    const info = statSync(source);
+    if (!info.isFile()) throw new Error("Import source must be a regular file.");
+    if (info.size > MAX_RESOURCE_BYTES) throw new Error(`Import file exceeds ${kb(MAX_RESOURCE_BYTES)}.`);
+    const bytes = readFileSync(source);
+    const mime = options.mime ?? guessMime(target, true);
+    const textAsset = mime.startsWith("text/") || /(?:json|xml|javascript)/.test(mime);
+    const encoding = options.encoding ?? (resourceKind(target) !== "asset" || textAsset ? "utf8" : "base64");
+    return this.writeResource(target, bytes.toString(encoding === "base64" ? "base64" : "utf8"), {
+      ...options,
+      encoding,
+    });
+  }
+
+  createCheckpoint(name: string, overwrite = false) {
+    if (typeof name !== "string" || !name.trim() || name.length > 80)
+      throw new Error("Checkpoint name must contain 1 to 80 characters.");
+    name = name.trim();
+    const current = this.d.checkpoints ?? [];
+    if (!overwrite && current.some((checkpoint) => checkpoint.name === name))
+      throw new Error(`Checkpoint "${name}" already exists. Use overwrite:true to replace it.`);
+    const checkpoint = structuredClone({
+      name,
+      createdAt: Date.now(),
+      canvas: this.d.canvas,
+      data: this.d.data,
+      chrome: this.d.chrome,
+    });
+    const next = [...current.filter((entry) => entry.name !== name), checkpoint];
+    if (next.length > CHECKPOINT_LIMIT) throw new Error(`At most ${CHECKPOINT_LIMIT} checkpoints may be saved.`);
+    if (Buffer.byteLength(JSON.stringify(next)) > MAX_CHECKPOINT_BYTES)
+      throw new Error(`Saved checkpoints exceed ${kb(MAX_CHECKPOINT_BYTES)}.`);
+    this.d.checkpoints = next;
+    this.save();
+    return `Saved checkpoint "${name}".`;
+  }
+
+  listCheckpoints() {
+    return (this.d.checkpoints ?? []).map(({ name, createdAt, canvas }) => ({
+      name,
+      createdAt,
+      mode: canvas.mode,
+      resources: Object.keys(canvas.resources).length,
+    }));
+  }
+
+  async restoreCheckpoint(name: string) {
+    const checkpoint = this.d.checkpoints?.find((entry) => entry.name === name);
+    if (!checkpoint) throw new Error(`No checkpoint named "${name}".`);
+    const names = new Set([...Object.keys(this.d.canvas.resources), ...Object.keys(checkpoint.canvas.resources)]);
+    const entry: UndoEntry = {
+      label: `restore checkpoint ${name}`,
+      ts: Date.now(),
+      mode: checkpoint.canvas.mode,
+      res: Object.fromEntries(
+        [...names].map((key) => [
+          key,
+          Object.hasOwn(checkpoint.canvas.resources, key) ? checkpoint.canvas.resources[key] : null,
+        ]),
+      ),
+      data: checkpoint.data,
+      chrome: checkpoint.chrome,
+    };
+    this.pushUndo(this.capture(entry));
+    this.restore(entry);
+    this.save();
+    return `Restored checkpoint "${name}". ${this.formatReport(await this.awaitApplied(this.d.canvas.rev))}`;
+  }
 
   private commitResource(label: string, name: string, next: Resource | null) {
     const prev = this.d.canvas.resources[name] ?? null;
@@ -631,7 +840,7 @@ export class Session {
     const kind = resourceKind(name);
     const binary = opts.encoding === "base64";
     if (binary && kind !== "asset") throw new Error(`${name}: only assets may be base64`);
-    const size = binary ? Math.floor((content.length * 3) / 4) : Buffer.byteLength(content);
+    const size = binary ? Buffer.byteLength(content, "base64") : Buffer.byteLength(content);
     if (size > MAX_RESOURCE_BYTES) throw new Error(`${name}: too large (${kb(size)}, max ${kb(MAX_RESOURCE_BYTES)})`);
     const mime =
       opts.mime ??
@@ -834,6 +1043,16 @@ export class Session {
       this.pending.delete(requestId);
       resolve(r);
     }
+  }
+
+  requestUserInput(spec: UserInputSpec, timeoutMs = 240_000) {
+    const target = this.viewerFor?.([...this.ready]) ?? this.primary ?? [...this.clients].at(-1);
+    if (!target) throw new Error("No canvas viewer is open to answer this question.");
+    return this.interactions.request(spec, { ownerId: target.user?.id ?? target.id, timeoutMs });
+  }
+
+  replyUserInput(client: Client, reply: UserInputReply) {
+    return this.clients.has(client) && this.interactions.reply(client, reply);
   }
 
   frameRequest(request: FrameRequest): Promise<FrameResult> {

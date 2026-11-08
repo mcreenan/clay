@@ -317,6 +317,50 @@ export interface SessionSnapshot {
   /** File name of the `.clay` artifact this session was last saved to or opened from. */
   file?: string;
   title?: SessionTitle;
+  /** Transient host prompts. These are not part of the saved artifact. */
+  pendingInputs?: UserInputRequest[];
+}
+
+export type UserInputSpec = { prompt: string } & (
+  | { kind: "choice"; options: { id: string; label: string; description?: string }[] }
+  | { kind: "form"; fields: { id: string; label: string; placeholder?: string; required?: boolean }[] }
+);
+
+export type UserInputAnswer = { choice: string } | { values: Record<string, string> };
+
+export type UserInputRequest = UserInputSpec & {
+  requestId: string;
+  createdAt: number;
+  expiresAt: number;
+  /** A hub user id, or a local client id. Omit to accept the first valid reply. */
+  ownerId?: string;
+};
+
+export type UserInputResult =
+  | { requestId: string; status: "answered"; answer: UserInputAnswer }
+  | { requestId: string; status: "cancelled" | "timeout" | "disconnected" | "disposed"; reason?: string };
+
+export type UserInputReply = { t: "user_input.reply"; requestId: string } & (
+  | { answer: UserInputAnswer; cancelled?: false }
+  | { cancelled: true; answer?: never }
+);
+
+export type SelectionMode = "element" | "text" | "region";
+export interface SelectionBox {
+  /** CSS pixels relative to the canvas viewport. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CanvasSelection {
+  kind: SelectionMode;
+  selector: string;
+  box: SelectionBox;
+  text: string;
+  resourceHints: { name: string; kind: ResourceKind; reason: string }[];
+  rev: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +423,7 @@ export interface Revision {
 // ---------------------------------------------------------------------------
 
 export type FrameRequest =
+  | { kind: "selection" }
   | { kind: "eval"; js: string }
   | { kind: "view"; outline: boolean; selector?: string; screenshot: boolean; maxWidth: number }
   | { kind: "stats" }
@@ -393,6 +438,7 @@ export interface FrameResult {
 }
 
 export type ClientMsg =
+  | UserInputReply
   | { t: "settings.get" }
   | { t: "settings.set"; settings: AppSettings }
   | { t: "hello"; v: number; sessionId?: string }
@@ -442,6 +488,8 @@ export type ClientMsg =
   | { t: "revisions.restore"; commit: string };
 
 export type ServerMsg =
+  | { t: "user_input.request"; request: UserInputRequest }
+  | { t: "user_input.result"; result: UserInputResult }
   | { t: "settings"; settings: AppSettings; saved?: boolean }
   | { t: "settings.error"; message: string }
   | { t: "input.info"; requestId: string; capabilities?: InputCapabilities; error?: string }
@@ -502,6 +550,7 @@ export type ServerMsg =
 // ---------------------------------------------------------------------------
 
 export type ToFrameMsg =
+  | { type: "selection.mode"; mode: SelectionMode | null; clear?: boolean }
   | { type: "init"; canvas: CanvasState; data: Record<string, unknown> }
   | { type: "state"; canvas: CanvasState }
   | { type: "data"; key: string; value?: unknown; deleted?: boolean }
@@ -522,6 +571,7 @@ export type UiCommand =
   | "rename";
 
 export type FromFrameMsg =
+  | { type: "selection.state"; mode: SelectionMode | null; selection: CanvasSelection | null }
   | { type: "hello" }
   | { type: "ready"; rev: number }
   | { type: "applied"; rev: number; errors: string[]; warnings: string[] }

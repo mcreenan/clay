@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { AgentLink } from "../core/agentLink";
 import { ARTIFACT_EXT, ARTIFACT_OPEN_EXTENSIONS, clayArtifactPath, isArtifactPath } from "../shared/artifact";
 import { SessionManager } from "../core/manager";
+import { createElectronExportRenderer } from "../core/export";
 import type { Client } from "../core/session";
 import { FRAME_HEADERS, createFrameFiles } from "../core/static";
 import type { FileCommand } from "../shared/bridge";
@@ -149,10 +150,26 @@ function canvasFrame(wc: WebContents) {
   return wc.mainFrame.framesInSubtree.find((f) => f.url.startsWith("canvas://"));
 }
 
+const renderCanvasExport = createElectronExportRenderer(() => {
+  const window = new BrowserWindow({
+    show: false,
+    useContentSize: true,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  return window;
+});
+
 function clientFor(wc: WebContents): Client {
   return {
     id: `wc-${wc.id}`,
     kind: "electron",
+    renderExport: renderCanvasExport,
     send: (msg: ServerMsg) => {
       if (!wc.isDestroyed()) wc.send("ac:msg", msg);
     },

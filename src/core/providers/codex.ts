@@ -242,7 +242,8 @@ class CodexRun implements AgentRun {
         "-c",
         `mcp_servers.${endpoint.name}.url=${toml(endpoint.url)}`,
         "-c",
-        `mcp_servers.${endpoint.name}.tool_timeout_sec=120`,
+        // Leave time for the user to answer user_input.
+        `mcp_servers.${endpoint.name}.tool_timeout_sec=360`,
         "-c",
         `mcp_servers.${endpoint.name}.startup_timeout_sec=30`,
         "-c",

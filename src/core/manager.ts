@@ -252,6 +252,9 @@ export class SessionManager {
 export async function handleSessionMsg(s: Session, client: Client, msg: ClientMsg): Promise<boolean> {
   const by = client.user?.name;
   switch (msg.t) {
+    case "user_input.reply":
+      s.replyUserInput(client, msg);
+      return true;
     case "interrupt":
       await s.interrupt();
       return true;

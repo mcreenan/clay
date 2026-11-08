@@ -8,6 +8,7 @@ import {
   type ArtifactInfo,
   type CanvasState,
   type CanvasStats,
+  type CanvasSelection,
   type ChromeState,
   type HistoryItem,
   type InputCapabilities,
@@ -18,6 +19,8 @@ import {
   type ServerMsg,
   type SessionConfig,
   type SessionTitle,
+  type SelectionMode,
+  type UserInputRequest,
   type UndoInfo,
 } from "../shared/protocol";
 
@@ -27,6 +30,9 @@ export interface UiState {
   settingsSaving: boolean;
   settingsError?: string;
   inputUpdate?: { capabilities: InputCapabilities; provider: string; agent?: string };
+  pendingInputs: UserInputRequest[];
+  selectionMode: SelectionMode | null;
+  selection: CanvasSelection | null;
   connected: boolean;
   welcomed: boolean;
   providers: ProviderInfo[];
@@ -77,6 +83,9 @@ export interface UiState {
 export const useUi = create<UiState>(() => ({
   settingsOpen: false,
   settingsSaving: false,
+  pendingInputs: [],
+  selectionMode: null,
+  selection: null,
   connected: false,
   welcomed: false,
   providers: [],
@@ -99,6 +108,9 @@ export const useUi = create<UiState>(() => ({
 
 /** Session state reset when leaving an artifact (hub). */
 export const noSession = {
+  pendingInputs: [],
+  selectionMode: null,
+  selection: null,
   sessionId: undefined,
   config: undefined,
   status: "idle",
@@ -120,6 +132,17 @@ const set = useUi.setState;
 /** Apply a core message to UI state. Canvas/frame relaying is done by the CanvasFrame host. */
 export function reduce(msg: ServerMsg) {
   switch (msg.t) {
+    case "user_input.request":
+      return set((st) => ({
+        pendingInputs: [
+          ...st.pendingInputs.filter((request) => request.requestId !== msg.request.requestId),
+          msg.request,
+        ],
+      }));
+    case "user_input.result":
+      return set((st) => ({
+        pendingInputs: st.pendingInputs.filter((request) => request.requestId !== msg.result.requestId),
+      }));
     case "settings":
       return set({
         settings: msg.settings,
@@ -160,9 +183,7 @@ export function reduce(msg: ServerMsg) {
       return set({ providers: msg.providers });
     case "session.none":
       return set((st) =>
-        st.hub
-          ? { ...noSession, phase: st.project ? "project" : "projects" }
-          : { phase: "start", sessionId: undefined },
+        st.hub ? { ...noSession, phase: st.project ? "project" : "projects" } : { ...noSession, phase: "start" },
       );
     case "session.snapshot": {
       const s = msg.session;
@@ -180,6 +201,8 @@ export function reduce(msg: ServerMsg) {
         stats: s.stats,
         file: s.file,
         title: s.title,
+        pendingInputs: s.pendingInputs ?? [],
+        ...(useUi.getState().sessionId !== s.id && { selectionMode: null, selection: null }),
         error: undefined,
       });
     }

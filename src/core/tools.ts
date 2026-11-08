@@ -47,6 +47,53 @@ const chromeProps = z
 
 /** The canvas tools every agent gets. */
 export const TOOL_DEFS: ToolDef[] = [
+  {
+    name: "canvas_present",
+    description:
+      "Present a result in one update and one undo step. Applies mode and resources together, after all inputs pass validation. Keeps unspecified resources unless replace:true. Use html mode for reports, PR explanations, diagrams, and forms.",
+    shape: {
+      mode: z.enum(CANVAS_MODES).optional(),
+      resources: z
+        .array(
+          z.object({
+            name: z.string(),
+            content: z.string(),
+            encoding: z.enum(["utf8", "base64"]).optional(),
+            mime: z.string().optional(),
+          }),
+        )
+        .max(100),
+      replace: z.boolean().optional(),
+    },
+  },
+  {
+    name: "resource_import",
+    description:
+      "Import a local workspace file directly into a canvas resource. Handles text and binary files without copying their content through chat. Follows symlinks only inside the workspace. Maximum file size: 8 MB. Override encoding when needed.",
+    shape: {
+      path: z.string().min(1),
+      name: z.string().optional(),
+      encoding: z.enum(["utf8", "base64"]).optional(),
+      mime: z.string().optional(),
+    },
+  },
+  {
+    name: "checkpoint_create",
+    description:
+      "Save a named copy of canvas resources, mode, data, and chrome in the session. Checkpoints survive restarts. Live DOM and ctx.state are not captured. Up to 20 checkpoints and 32 MB total. Existing names require overwrite:true.",
+    shape: { name: z.string().min(1).max(80), overwrite: z.boolean().optional() },
+  },
+  {
+    name: "checkpoint_restore",
+    description:
+      "Restore a named checkpoint's resources, mode, data, and chrome as one undoable update. Runtime modules run again.",
+    shape: { name: z.string().min(1).max(80) },
+  },
+  {
+    name: "checkpoint_list",
+    description: "List saved checkpoint names, creation times, modes, and resource counts.",
+    shape: {},
+  },
   { name: "resource_list", description: "List canvas resources (name, kind, size) and the current mode.", shape: {} },
   {
     name: "resource_read",
@@ -96,6 +143,51 @@ export const TOOL_DEFS: ToolDef[] = [
     shape: { js: z.string() },
   },
   {
+    name: "selection_read",
+    description:
+      "Read the user's current element, text, or region selection. Returns a CSS selector, viewport bounds, text, resource hints, and canvas revision, or null when nothing is selected. Use the host Select controls to select content.",
+    shape: {},
+  },
+  {
+    name: "user_input",
+    description:
+      "Ask the user to select an option or complete a short form in the host interface. Keeps the canvas in place and waits for an answer, cancellation, disconnect, or timeout. Returns a status and the answer. Default wait: four minutes.",
+    shape: {
+      request: z.discriminatedUnion("kind", [
+        z.object({
+          kind: z.literal("choice"),
+          prompt: z.string().min(1).max(4000),
+          options: z
+            .array(
+              z.object({
+                id: z.string().regex(/^[\w-]{1,80}$/),
+                label: z.string().min(1).max(500),
+                description: z.string().max(4000).optional(),
+              }),
+            )
+            .min(1)
+            .max(10),
+        }),
+        z.object({
+          kind: z.literal("form"),
+          prompt: z.string().min(1).max(4000),
+          fields: z
+            .array(
+              z.object({
+                id: z.string().regex(/^[\w-]{1,80}$/),
+                label: z.string().min(1).max(500),
+                placeholder: z.string().max(500).optional(),
+                required: z.boolean().optional(),
+              }),
+            )
+            .min(1)
+            .max(10),
+        }),
+      ]),
+      timeout_ms: z.number().int().min(1000).max(240_000).optional(),
+    },
+  },
+  {
     name: "canvas_view",
     description:
       "What the user sees: errors and console since your last view, a compact DOM outline, runtime stats, and optionally a screenshot.",
@@ -116,6 +208,28 @@ export const TOOL_DEFS: ToolDef[] = [
     description:
       "Runtime stats: fps, frame time, heap, three.js renderer.info, WebGL contexts, live timers/listeners/rAF, leak warnings.",
     shape: {},
+  },
+  {
+    name: "canvas_export",
+    description:
+      "Export saved canvas resources and data to standalone HTML or a PNG/PDF viewport in the session workspace. Setup runs again; live DOM and ctx.state are not captured. External resources are blocked. Desktop uses Electron; web PNG/PDF requires installed Chromium. Existing files require overwrite:true.",
+    shape: {
+      format: z.enum(["html", "png", "pdf"]),
+      filename: z
+        .string()
+        .min(1)
+        .max(500)
+        .optional()
+        .describe("Workspace path. Default: exports/<title>-<time>.<format>."),
+      width: z.number().int().min(1).max(16_384).optional(),
+      height: z.number().int().min(1).max(16_384).optional(),
+      overwrite: z.boolean().optional(),
+      modules: z
+        .array(z.string())
+        .max(50)
+        .optional()
+        .describe("Extra local import-map specifiers for computed import() calls."),
+    },
   },
   {
     name: "canvas_reload",
@@ -177,6 +291,16 @@ export function buildToolSet(s: Session): ToolSet {
     async run(name, a: any) {
       try {
         switch (name) {
+          case "canvas_present":
+            return text(await s.present(a));
+          case "resource_import":
+            return text(await s.importResource(a.path, a.name, { encoding: a.encoding, mime: a.mime }));
+          case "checkpoint_create":
+            return text(s.createCheckpoint(a.name, a.overwrite));
+          case "checkpoint_restore":
+            return text(await s.restoreCheckpoint(a.name));
+          case "checkpoint_list":
+            return text(json(s.listCheckpoints()));
           case "resource_list":
             return text(s.describeResources());
           case "resource_read":
@@ -197,6 +321,12 @@ export function buildToolSet(s: Session): ToolSet {
             const r = await s.frameRequest({ kind: "eval", js: a.js });
             return r.ok ? text(r.value ?? "undefined") : text(`Error: ${r.error}`, true);
           }
+          case "selection_read": {
+            const result = await s.frameRequest({ kind: "selection" });
+            return result.ok ? text(result.value ?? "null") : text(`Error: ${result.error}`, true);
+          }
+          case "user_input":
+            return text(json(await s.requestUserInput(a.request, a.timeout_ms)));
           case "canvas_view":
             return await s.view({
               screenshot: Boolean(a.screenshot),
@@ -208,6 +338,8 @@ export function buildToolSet(s: Session): ToolSet {
             return text(s.setTitle(a.title, "agent"));
           case "canvas_stats":
             return text(await s.statsReport());
+          case "canvas_export":
+            return text(json(await s.exportCanvasToFile(a)));
           case "canvas_reload":
             return text(await s.reload());
           case "data_get":
@@ -245,7 +377,7 @@ export function createCanvasMcpServer(tools: ToolSet) {
     name: MCP_SERVER_NAME,
     version: "2.0.0",
     alwaysLoad: true,
-    timeout: 90_000,
+    timeout: 360_000,
     tools: tools.defs.map((d) =>
       tool(d.name, d.description, d.shape, async (args) => {
         const out = await tools.run(d.name, args as Record<string, unknown>);

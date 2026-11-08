@@ -44,6 +44,130 @@ textarea {
   background: transparent;
 }
 
+/* Host-owned selection and agent input controls. */
+.selection-tools,
+.user-input-panel {
+  position: fixed;
+  z-index: 2147483001;
+  background: #1a1b22;
+  color: #e8e8ec;
+  border: 1px solid #ffffff22;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px #0006;
+  padding: 12px;
+  max-width: calc(100vw - 24px);
+}
+.selection-tools {
+  top: calc(var(--tb) + 12px);
+  left: 12px;
+}
+.selection-tools p {
+  font-size: 12px;
+  margin: 8px 0 0;
+  color: #b9b9c5;
+}
+.interaction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.selection-tools .btn[aria-pressed="true"] {
+  background: #7c9cff;
+  color: #0b0d14;
+  border-color: #7c9cff;
+}
+.selection-outline {
+  position: fixed;
+  z-index: 2147483000;
+  pointer-events: none;
+  border: 2px solid #7c9cff;
+  background: #7c9cff12;
+}
+.user-input-panel {
+  top: calc(var(--tb) + 12px);
+  right: 12px;
+  width: 360px;
+  max-height: calc(100dvh - var(--tb) - 24px);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.user-input-panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.input-request + .input-request {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ffffff22;
+}
+.input-request fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.input-request legend {
+  font-weight: 600;
+  margin-bottom: 12px;
+  padding: 0;
+  white-space: pre-wrap;
+}
+.input-option,
+.input-field {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.input-option {
+  align-items: flex-start;
+  cursor: pointer;
+}
+.input-option input {
+  margin-top: 4px;
+  accent-color: #7c9cff;
+}
+.input-option small {
+  display: block;
+  color: #b9b9c5;
+}
+.input-field {
+  flex-direction: column;
+  gap: 4px;
+}
+.input-field input {
+  min-width: 0;
+  width: 100%;
+  background: #0e0f13;
+  border: 1px solid #ffffff33;
+  border-radius: 8px;
+  padding: 6px 8px;
+  caret-color: #7c9cff;
+}
+.selection-tools button:focus-visible,
+.user-input-panel :is(button, input):focus-visible {
+  outline: 2px solid #7c9cff;
+  outline-offset: 3px;
+}
+.input-field input::placeholder {
+  color: #9a9aa6;
+}
+.input-field input::selection {
+  background: #7c9cff;
+  color: #0b0d14;
+}
+@media (max-width: 700px) {
+  .selection-tools {
+    right: 12px;
+    width: fit-content;
+  }
+  .user-input-panel {
+    top: calc(var(--tb) + 142px);
+    max-height: calc(100dvh - var(--tb) - 154px);
+  }
+}
+
 .btn {
   border: 1px solid #ffffff22;
   background: #ffffff10;
