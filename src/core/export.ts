@@ -35,7 +35,7 @@ export interface ExportOptions extends Omit<RenderExportOptions, "format"> {
 }
 
 const scriptJSON = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
-const DEFAULT_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const DEFAULT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 // Playwright is optional. Packaged desktop builds use the Electron renderer.
 const loadTool = <T>(name: string): Promise<T> => import(/* @vite-ignore */ name);
